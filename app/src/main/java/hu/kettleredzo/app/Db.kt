@@ -44,7 +44,7 @@ data class Workout(
     val programWeek: Int? = null,
     val completed: Boolean = false, // elérte-e a célt / végigment-e a programon
 ) {
-    val modeLabel get() = modeLabel(mode, goal, programWeek) + if (completed) " ✓" else ""
+    val label: String get() = modeLabel(mode, goal, programWeek) + if (completed) " ✓" else ""
 }
 
 data class Totals(val count: Int, val movingMs: Long, val distanceKm: Double, val kcal: Double)

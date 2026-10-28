@@ -1,5 +1,5 @@
 substitutions:
-  pulses_per_rev: "1"       # impulzus / pedálfordulat (kalibrálás folyamatban)
+  pulses_per_rev: "10"      # impulzus / pedálfordulat (a gép kijelzőjéhez kalibrálva)
   meters_per_rev: "2.639"
 
 esphome:
