@@ -39,12 +39,18 @@ data class Workout(
     val level: Int,
     val avgHr: Int? = null, // a pulzuspánttal töltődik majd
     val maxHr: Int? = null,
-)
+    val mode: WorkoutMode = WorkoutMode.FREE,
+    val goal: Double? = null,
+    val programWeek: Int? = null,
+    val completed: Boolean = false, // elérte-e a célt / végigment-e a programon
+) {
+    val modeLabel get() = modeLabel(mode, goal, programWeek) + if (completed) " ✓" else ""
+}
 
 data class Totals(val count: Int, val movingMs: Long, val distanceKm: Double, val kcal: Double)
 
 // Helyi adatbázis a tableten: profilok és edzésnapló.
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "kettler.db", null, 1) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "kettler.db", null, 2) {
 
     override fun onConfigure(db: SQLiteDatabase) {
         db.setForeignKeyConstraintsEnabled(true)
@@ -75,9 +81,18 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
                 max_hr INTEGER)""",
         )
         db.execSQL("CREATE INDEX workouts_profile ON workouts(profile_id, started_at)")
+        onUpgrade(db, 1, 2)
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+    // 2. verzió: edzésmód, cél, program és teljesítés. A régi edzések „Szabad edzés”-ként maradnak meg.
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE workouts ADD COLUMN mode TEXT NOT NULL DEFAULT 'free'")
+            db.execSQL("ALTER TABLE workouts ADD COLUMN goal REAL")
+            db.execSQL("ALTER TABLE workouts ADD COLUMN program INTEGER")
+            db.execSQL("ALTER TABLE workouts ADD COLUMN completed INTEGER NOT NULL DEFAULT 0")
+        }
+    }
 
     // ---- Profilok ----
 
@@ -124,9 +139,23 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
             put("level", w.level)
             w.avgHr?.let { put("avg_hr", it) }
             w.maxHr?.let { put("max_hr", it) }
+            put("mode", w.mode.code)
+            w.goal?.let { put("goal", it) }
+            w.programWeek?.let { put("program", it) }
+            put("completed", if (w.completed) 1 else 0)
         }
         return writableDatabase.insertOrThrow("workouts", null, v)
     }
+
+    // Végigcsinált programos edzések száma (ebből jön az ajánlott hét)
+    fun completedProgramCount(profileId: Long): Int =
+        readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM workouts WHERE profile_id = ? AND mode = 'program' AND completed = 1",
+            arrayOf(profileId.toString()),
+        ).use { c ->
+            c.moveToFirst()
+            c.getInt(0)
+        }
 
     fun workouts(profileId: Long, since: Long = 0, limit: Int = 500): List<Workout> =
         readableDatabase.rawQuery(
@@ -181,6 +210,10 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
         level = getInt(getColumnIndexOrThrow("level")),
         avgHr = getColumnIndexOrThrow("avg_hr").let { if (isNull(it)) null else getInt(it) },
         maxHr = getColumnIndexOrThrow("max_hr").let { if (isNull(it)) null else getInt(it) },
+        mode = WorkoutMode.of(getString(getColumnIndexOrThrow("mode"))),
+        goal = getColumnIndexOrThrow("goal").let { if (isNull(it)) null else getDouble(it) },
+        programWeek = getColumnIndexOrThrow("program").let { if (isNull(it)) null else getInt(it) },
+        completed = getInt(getColumnIndexOrThrow("completed")) == 1,
     )
 
     companion object {

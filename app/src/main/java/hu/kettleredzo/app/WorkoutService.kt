@@ -19,6 +19,7 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.TextView
+import kotlin.math.min
 
 // Előtérszolgáltatás: tartja a kapcsolatot az ESP32-vel, méri az edzésidőt,
 // és edzés közben kiteszi az overlay-sávot más appok (pl. Kodi) fölé.
@@ -31,12 +32,40 @@ class WorkoutService : Service() {
     private val tick = object : Runnable {
         override fun run() {
             val now = SystemClock.elapsedRealtime()
-            // Az edzésidő csak akkor megy, ha a gép mozog.
-            if (KettlerState.isCounting && KettlerState.isMoving) KettlerState.movingMs += now - lastTick
+            val dt = now - lastTick
             lastTick = now
+            val s = KettlerState
+            // Az edzésidő csak akkor megy, ha a gép mozog.
+            if (s.isCounting && s.isMoving) s.movingMs += dt
+            if (s.isCounting && !s.goalReached) advanceProgram(dt)
+            if (s.isCounting && !s.goalReached && s.goalMet) {
+                // Cél teljesítve: dupla hosszú hang, és szünetre váltunk.
+                s.goalReached = true
+                s.pause()
+                Beeper.long()
+                handler.postDelayed({ Beeper.long() }, 900)
+            }
             updateOverlay()
             KettlerState.notifyChanged()
             handler.postDelayed(this, 1000)
+        }
+    }
+
+    // A program szakaszai valós idő szerint telnek (a pihenőben meg lehet állni).
+    // Szakaszváltás előtt 3-2-1 rövid hang, váltáskor egy hosszú.
+    private fun advanceProgram(dt: Long) {
+        val s = KettlerState
+        val total = s.program?.totalMs ?: return
+        val before = s.segmentState() ?: return
+        s.programElapsedMs = min(total, s.programElapsedMs + dt)
+        val after = s.segmentState() ?: return
+        if (after.index != before.index) {
+            Beeper.long()
+        } else {
+            val secBefore = (before.remainingMs + 999) / 1000
+            val secAfter = (after.remainingMs + 999) / 1000
+            val isLast = after.index == s.program!!.segments.size - 1
+            if (secAfter != secBefore && secAfter in 1..3 && !isLast) Beeper.short()
         }
     }
 
@@ -57,6 +86,7 @@ class WorkoutService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(tick)
+        Beeper.release()
         client?.stop()
         client = null
         removeOverlay()
@@ -113,10 +143,11 @@ class WorkoutService : Service() {
         val s = KettlerState
         val prefix = when {
             !s.connected -> "⚠ NINCS KAPCSOLAT   "
-            s.paused -> "SZÜNET   "
+            s.paused && !s.goalReached -> "SZÜNET   "
             else -> ""
         }
-        return prefix + formatTime(s.movingMs) + "     " +
+        val goal = s.goalStatus()?.let { "$it     " } ?: ""
+        return prefix + goal + formatTime(s.movingMs) + "     " +
             formatNum(s.speedKmh, 1) + " km/h     " +
             formatNum(s.rpm, 0) + " rpm     " +
             formatNum(s.workoutKm, 2) + " km     " +

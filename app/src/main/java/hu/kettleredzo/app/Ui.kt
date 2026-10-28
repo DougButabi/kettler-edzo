@@ -10,6 +10,7 @@ import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
@@ -109,6 +110,54 @@ class Ui(private val ctx: Context) {
             addView(text(caption, 30, fg, medium), lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ipx(22) })
             setOnClickListener { onClick() }
         }
+
+    // ---- Teljes képernyős űrlapok (profil, beállítások, edzésmód) ----
+
+    // Bal oldali sáv: KETTLER logó és nagy cím. A hívó további elemeket tehet alá.
+    fun sidePanel(title: String) = LinearLayout(ctx).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(ipx(60), ipx(45), ipx(30), ipx(45))
+        addView(text("KETTLER", 32, INK, light, 0.35f))
+        addView(text(title, 64, INK, bold).apply { maxLines = 2 }, lp(WRAP_CONTENT, WRAP_CONTENT).apply {
+            topMargin = ipx(50)
+        })
+    }
+
+    fun field(value: String, hint: String, type: Int, last: Boolean) = EditText(ctx).apply {
+        setText(value)
+        this.hint = hint
+        inputType = type
+        maxLines = 1
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, px(38))
+        typeface = bold
+        setTextColor(INK)
+        setHintTextColor(LINE)
+        background = rounded(CARD, 22)
+        setPadding(ipx(28), ipx(18), ipx(28), ipx(18))
+        compactKeyboard(last)
+    }
+
+    // Mezők közötti alapértelmezett térköz
+    fun fieldLp() = lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ipx(12) }
+
+    // Nagy, lekerekített szöveges gomb
+    fun button(caption: String, bg: Int, fg: Int, onClick: () -> Unit) = text(caption, 30, fg, medium).apply {
+        gravity = Gravity.CENTER
+        background = rounded(bg, 45)
+        setOnClickListener { onClick() }
+    }
+
+    // Választógomb (pl. Férfi / Nő); a kijelölést a setChosen állítja
+    fun choice(caption: String, size: Number = 30, onClick: () -> Unit) = text(caption, size, INK, medium).apply {
+        gravity = Gravity.CENTER
+        setChosen(this, false)
+        setOnClickListener { onClick() }
+    }
+
+    fun setChosen(view: TextView, chosen: Boolean) {
+        view.background = rounded(if (chosen) BAR else CARD, 45)
+        view.setTextColor(if (chosen) Color.WHITE else INK)
+    }
 
     fun toast(msg: String) = Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
 }

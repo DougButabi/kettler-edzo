@@ -8,8 +8,8 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
-import android.util.TypedValue
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.EditText
@@ -61,15 +61,7 @@ class ProfileEditActivity : Activity() {
 
     // Bal oldal: cím és a névből élőben frissülő monogram
     private fun buildLeft(): LinearLayout {
-        val left = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(ui.ipx(60), ui.ipx(45), ui.ipx(30), ui.ipx(45))
-        }
-        left.addView(ui.text("KETTLER", 32, INK, ui.light, 0.35f))
-        left.addView(
-            ui.text(if (profile == null) "Új profil" else "Profil\nszerkesztése", 64, INK, ui.bold).apply { maxLines = 2 },
-            ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(50) },
-        )
+        val left = ui.sidePanel(if (profile == null) "Új profil" else "Profil\nszerkesztése")
         avatar = ui.text("", 110, Color.WHITE, ui.bold).apply {
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
@@ -92,17 +84,17 @@ class ProfileEditActivity : Activity() {
         }
         val p = profile
 
-        nameE = field(p?.name ?: "", "pl. Anna", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS, false)
+        nameE = ui.field(p?.name ?: "", "pl. Anna", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS, false)
         nameE.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) = updateAvatar()
         })
         form.addView(ui.label("NÉV"))
-        form.addView(nameE, fieldLp())
+        form.addView(nameE, ui.fieldLp())
 
-        yearE = field(p?.birthYear?.toString() ?: "", "pl. 1985", InputType.TYPE_CLASS_NUMBER, false)
-        weightE = field(
+        yearE = ui.field(p?.birthYear?.toString() ?: "", "pl. 1985", InputType.TYPE_CLASS_NUMBER, false)
+        weightE = ui.field(
             p?.let { weightText(it.weightKg) } ?: "", "pl. 80",
             InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL, true,
         )
@@ -113,11 +105,11 @@ class ProfileEditActivity : Activity() {
 
         form.addView(ui.label("NEM"), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(36) })
         val sexRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        maleBtn = choice("Férfi") { sex = Sex.MALE; updateSex() }
-        femaleBtn = choice("Nő") { sex = Sex.FEMALE; updateSex() }
+        maleBtn = ui.choice("Férfi") { sex = Sex.MALE; updateSex() }
+        femaleBtn = ui.choice("Nő") { sex = Sex.FEMALE; updateSex() }
         sexRow.addView(maleBtn, ui.lp(0, ui.ipx(90), 1f))
         sexRow.addView(femaleBtn, ui.lp(0, ui.ipx(90), 1f).apply { leftMargin = ui.ipx(30) })
-        form.addView(sexRow, fieldLp())
+        form.addView(sexRow, ui.fieldLp())
 
         errorV = ui.text("", 22, DANGER, ui.medium)
         form.addView(errorV, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
@@ -127,11 +119,11 @@ class ProfileEditActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         if (p != null) {
-            buttons.addView(button("Törlés", DANGER, Color.WHITE) { confirmDelete(p) }, ui.lp(ui.ipx(200), ui.ipx(85)))
+            buttons.addView(ui.button("Törlés", DANGER, Color.WHITE) { confirmDelete(p) }, ui.lp(ui.ipx(200), ui.ipx(85)))
         }
-        buttons.addView(android.view.View(this), ui.lp(0, 1, 1f))
-        buttons.addView(button("Mégse", PILL, INK) { finish() }, ui.lp(ui.ipx(200), ui.ipx(85)))
-        buttons.addView(button("Mentés", BAR, Color.WHITE) { save() }, ui.lp(ui.ipx(260), ui.ipx(85)).apply {
+        buttons.addView(View(this), ui.lp(0, 1, 1f))
+        buttons.addView(ui.button("Mégse", PILL, INK) { finish() }, ui.lp(ui.ipx(200), ui.ipx(85)))
+        buttons.addView(ui.button("Mentés", BAR, Color.WHITE) { save() }, ui.lp(ui.ipx(260), ui.ipx(85)).apply {
             leftMargin = ui.ipx(20)
         })
         form.addView(buttons, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
@@ -140,47 +132,15 @@ class ProfileEditActivity : Activity() {
         return ScrollView(this).apply { addView(form) }
     }
 
-    // ---- Építőkockák ----
-
-    private fun field(value: String, hint: String, type: Int, last: Boolean) = EditText(this).apply {
-        setText(value)
-        this.hint = hint
-        inputType = type
-        maxLines = 1
-        setTextSize(TypedValue.COMPLEX_UNIT_PX, ui.px(38))
-        typeface = ui.bold
-        setTextColor(INK)
-        setHintTextColor(LINE)
-        background = ui.rounded(CARD, 22)
-        setPadding(ui.ipx(28), ui.ipx(18), ui.ipx(28), ui.ipx(18))
-        compactKeyboard(last)
-    }
-
-    private fun fieldLp() = ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(12) }
-
     private fun column(title: String, field: EditText) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         addView(ui.label(title))
-        addView(field, fieldLp())
-    }
-
-    private fun choice(caption: String, onClick: () -> Unit) = ui.text(caption, 30, INK, ui.medium).apply {
-        gravity = Gravity.CENTER
-        setOnClickListener { onClick() }
-    }
-
-    private fun button(caption: String, bg: Int, fg: Int, onClick: () -> Unit) = ui.text(caption, 30, fg, ui.medium).apply {
-        gravity = Gravity.CENTER
-        background = ui.rounded(bg, 45)
-        setOnClickListener { onClick() }
+        addView(field, ui.fieldLp())
     }
 
     private fun updateSex() {
-        for ((btn, value) in listOf(maleBtn to Sex.MALE, femaleBtn to Sex.FEMALE)) {
-            val selected = sex == value
-            btn.background = ui.rounded(if (selected) BAR else CARD, 45)
-            btn.setTextColor(if (selected) Color.WHITE else INK)
-        }
+        ui.setChosen(maleBtn, sex == Sex.MALE)
+        ui.setChosen(femaleBtn, sex == Sex.FEMALE)
     }
 
     private fun updateAvatar() {

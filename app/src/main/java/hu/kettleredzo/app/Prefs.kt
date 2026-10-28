@@ -12,8 +12,31 @@ object Prefs {
     fun overlay(c: Context): Boolean = prefs(c).getBoolean("overlay", true)
     fun setOverlay(c: Context, value: Boolean) = prefs(c).edit().putBoolean("overlay", value).apply()
 
-    fun goalMin(c: Context): Int = prefs(c).getInt("goalMin", 30)
-    fun setGoalMin(c: Context, value: Int) = prefs(c).edit().putInt("goalMin", value).apply()
+    // A legutóbb választott edzésmód, módonként megjegyzett céllal
+    fun mode(c: Context): WorkoutMode = WorkoutMode.of(prefs(c).getString("mode", null))
+    fun setMode(c: Context, value: WorkoutMode) = prefs(c).edit().putString("mode", value.code).apply()
+
+    fun goal(c: Context, mode: WorkoutMode): Double {
+        val default = when (mode) {
+            WorkoutMode.DISTANCE -> 5f
+            WorkoutMode.KCAL -> 500f
+            WorkoutMode.TIME -> 30f
+            else -> 0f
+        }
+        return prefs(c).getFloat("goal_" + mode.code, default).toDouble()
+    }
+    fun setGoal(c: Context, mode: WorkoutMode, value: Double) =
+        prefs(c).edit().putFloat("goal_" + mode.code, value.toFloat()).apply()
+
+    fun programWeek(c: Context): Int = prefs(c).getInt("programWeek", 1)
+    fun setProgramWeek(c: Context, value: Int) = prefs(c).edit().putInt("programWeek", value).apply()
+
+    // A mentett módot betölti a közös állapotba (edzés közben nem nyúlunk hozzá).
+    fun applyMode(c: Context) {
+        if (KettlerState.running) return
+        val m = mode(c)
+        KettlerState.configure(m, goal(c, m), Programs.week(programWeek(c)))
+    }
 
     fun currentProfileId(c: Context): Long = prefs(c).getLong("profileId", -1)
     fun setCurrentProfileId(c: Context, value: Long) = prefs(c).edit().putLong("profileId", value).apply()
@@ -35,5 +58,8 @@ fun formatTime(ms: Long): String {
     val sec = s % 60
     return if (h > 0) String.format(HU, "%d:%02d:%02d", h, m, sec) else String.format(HU, "%d:%02d", m, sec)
 }
+
+// Visszaszámlálásnál felfelé kerekítünk, hogy a 0:00 csak a végén jelenjen meg.
+fun formatTimeUp(ms: Long): String = formatTime(ms + 999)
 
 fun formatNum(value: Double, decimals: Int): String = String.format(HU, "%.${decimals}f", value)

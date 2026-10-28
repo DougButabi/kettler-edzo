@@ -7,17 +7,15 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Matrix
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.WindowManager
-import android.widget.CheckBox
-import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -30,10 +28,14 @@ class MainActivity : Activity() {
     private lateinit var ui: Ui
     private lateinit var profile: Profile
 
-    private lateinit var profilePill: TextView
+    private lateinit var nameV: TextView
+    private lateinit var modePill: TextView
     private lateinit var speedV: TextView
+    private lateinit var timeLabelV: TextView
     private lateinit var timeV: TextView
+    private lateinit var progressRow: View
     private lateinit var progressFill: View
+    private lateinit var progressFillBg: GradientDrawable
     private lateinit var progressRest: View
     private lateinit var percentV: TextView
     private lateinit var goalV: TextView
@@ -61,11 +63,17 @@ class MainActivity : Activity() {
         ui = Ui(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(buildUi())
-        if (Prefs.host(this).isBlank()) showSettings()
+        if (Prefs.host(this).isBlank()) openSettings()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_SETTINGS && resultCode == SettingsActivity.RESULT_EXIT) exitApp()
     }
 
     override fun onResume() {
         super.onResume()
+        if (isFinishing) return // pl. a Beállításokból kiléptek az appból
         // A profilt közben szerkeszthették vagy törölhették.
         val p = loadProfile()
         if (p == null) {
@@ -73,7 +81,8 @@ class MainActivity : Activity() {
             return
         }
         profile = p
-        profilePill.text = p.name
+        nameV.text = p.name
+        Prefs.applyMode(this)
         hideSystemBars()
         KettlerState.activityVisible = true
         KettlerState.addListener(listener)
@@ -108,15 +117,8 @@ class MainActivity : Activity() {
     private fun render() {
         val s = KettlerState
         speedV.text = formatNum(s.speedKmh, 1)
-        timeV.text = formatTime(s.movingMs)
-
-        val goal = Prefs.goalMin(this)
-        val p = if (goal > 0) (s.movingMs / (goal * 60_000f)).coerceIn(0f, 1f) else 0f
-        (progressFill.layoutParams as LinearLayout.LayoutParams).weight = p
-        (progressRest.layoutParams as LinearLayout.LayoutParams).weight = 1f - p
-        progressFill.requestLayout()
-        percentV.text = "${(p * 100).roundToInt()}%"
-        goalV.text = "Cél: $goal perc"
+        modePill.text = modeLabel(s.mode, s.goal, s.program?.week)
+        renderGoal()
 
         hrV.text = "–" // a pulzuspánt a 3. szakaszban jön
         avgV.text = formatNum(s.avgSpeedKmh, 1)
@@ -138,6 +140,53 @@ class MainActivity : Activity() {
             else -> mainButton(R.drawable.ic_pause, "Szünet")
         }
         finishBtn.visibility = if (s.paused) View.VISIBLE else View.GONE
+    }
+
+    // A jobb felső nagy mező a módhoz igazodik: eltelt idő, visszaszámlálás vagy programszakasz.
+    private fun renderGoal() {
+        val s = KettlerState
+        var fill = YELLOW
+        when (s.mode) {
+            WorkoutMode.FREE -> {
+                timeLabelV.text = "ELTELT IDŐ"
+                timeV.text = formatTime(s.movingMs)
+                goalV.text = ""
+            }
+            WorkoutMode.DISTANCE -> {
+                timeLabelV.text = "HÁTRALÉVŐ TÁV"
+                timeV.text = formatNum(s.remainingKm, 2)
+                goalV.text = "km   ·   Cél: ${goalText(s.goal)} km"
+            }
+            WorkoutMode.KCAL -> {
+                timeLabelV.text = "HÁTRALÉVŐ KALÓRIA"
+                timeV.text = formatNum(s.remainingKcal, 0)
+                goalV.text = "kcal   ·   Cél: ${goalText(s.goal)} kcal"
+            }
+            WorkoutMode.TIME -> {
+                timeLabelV.text = "HÁTRALÉVŐ IDŐ"
+                timeV.text = formatTimeUp(s.remainingMs)
+                goalV.text = "Cél: ${goalText(s.goal)} perc"
+            }
+            WorkoutMode.PROGRAM -> {
+                val program = s.program
+                val seg = s.segmentState()
+                if (program != null && seg != null) {
+                    timeLabelV.text = "${seg.segment.type.title}   ·   ${seg.index + 1}/${program.segments.size}. SZAKASZ"
+                    timeV.text = formatTimeUp(seg.remainingMs)
+                    goalV.text = "${program.title}   ·   eltelt ${formatTime(s.programElapsedMs)}"
+                    if (seg.segment.type == SegmentType.REST) fill = GREEN
+                }
+            }
+        }
+        if (s.goalReached) timeLabelV.text = "CÉL TELJESÍTVE! ✓"
+
+        val p = s.progress
+        progressRow.visibility = if (s.mode == WorkoutMode.FREE) View.GONE else View.VISIBLE
+        progressFillBg.setColor(fill)
+        (progressFill.layoutParams as LinearLayout.LayoutParams).weight = p
+        (progressRest.layoutParams as LinearLayout.LayoutParams).weight = 1f - p
+        progressFill.requestLayout()
+        percentV.text = "${(p * 100).roundToInt()}%"
     }
 
     private fun status(text: String, color: Int) {
@@ -185,9 +234,32 @@ class MainActivity : Activity() {
                 maxSpeed = s.maxSpeedKmh,
                 kcal = s.kcal,
                 level = Prefs.level(this),
+                mode = s.mode,
+                goal = if (s.mode == WorkoutMode.FREE || s.mode == WorkoutMode.PROGRAM) null else s.goal,
+                programWeek = s.program?.week,
+                completed = s.goalReached,
             ),
         )
         ui.toast("Edzés elmentve a naplóba.")
+    }
+
+    private fun exitApp() {
+        finishWorkout()
+        stopService(Intent(this, WorkoutService::class.java))
+        finishAndRemoveTask()
+    }
+
+    private fun openSettings() {
+        @Suppress("DEPRECATION")
+        startActivityForResult(Intent(this, SettingsActivity::class.java), REQ_SETTINGS)
+    }
+
+    private fun openMode() {
+        if (KettlerState.running) {
+            ui.toast("Edzés közben nem lehet módot váltani. Előbb fejezd be az edzést.")
+            return
+        }
+        startActivity(Intent(this, ModeActivity::class.java))
     }
 
     private fun changeLevel(delta: Int) {
@@ -195,7 +267,7 @@ class MainActivity : Activity() {
         render()
     }
 
-    private fun onProfilePill() {
+    private fun onProfileName() {
         if (KettlerState.running) {
             ui.toast("Edzés közben nem lehet profilt váltani. Előbb fejezd be az edzést.")
             return
@@ -215,54 +287,6 @@ class MainActivity : Activity() {
                 startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
             }
             .setNegativeButton("Most nem", null)
-            .show()
-    }
-
-    private fun showSettings() {
-        val pad = (24 * resources.displayMetrics.density).roundToInt()
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad / 2, pad, 0)
-        }
-        val host = EditText(this).apply {
-            hint = "pl. 192.168.1.50"
-            setText(Prefs.host(this@MainActivity))
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            compactKeyboard(false)
-        }
-        val goal = EditText(this).apply {
-            setText(Prefs.goalMin(this@MainActivity).toString())
-            inputType = InputType.TYPE_CLASS_NUMBER
-            compactKeyboard(true)
-        }
-        val overlay = CheckBox(this).apply {
-            text = "Overlay-sáv más appok (pl. Kodi) fölött"
-            isChecked = Prefs.overlay(this@MainActivity)
-        }
-        box.addView(TextView(this).apply { text = "Az ESP32 IP-címe" })
-        box.addView(host)
-        box.addView(TextView(this).apply { text = "Célidő (perc)" })
-        box.addView(goal)
-        box.addView(overlay)
-
-        AlertDialog.Builder(this)
-            .setTitle("Beállítások")
-            .setView(box)
-            .setPositiveButton("Mentés") { _, _ ->
-                Prefs.setHost(this, host.text.toString())
-                goal.text.toString().toIntOrNull()?.let { Prefs.setGoalMin(this, it.coerceIn(1, 600)) }
-                Prefs.setOverlay(this, overlay.isChecked)
-                startForegroundService(
-                    Intent(this, WorkoutService::class.java).setAction(WorkoutService.ACTION_RECONNECT),
-                )
-                render()
-            }
-            .setNegativeButton("Mégse", null)
-            .setNeutralButton("Kilépés az appból") { _, _ ->
-                finishWorkout()
-                stopService(Intent(this, WorkoutService::class.java))
-                finishAndRemoveTask()
-            }
             .show()
     }
 
@@ -328,23 +352,24 @@ class MainActivity : Activity() {
         logo.addView(ui.text("VITO XL · ELLIPTIKUS TRÉNER", 13, MUTED, ui.medium, 0.25f).apply {
             setPadding(0, ui.ipx(8), 0, 0)
         })
+        // A profil neve nagyban; koppintásra profilváltás
+        nameV = ui.text(profile.name, 46, INK, ui.bold).apply {
+            setPadding(0, ui.ipx(18), 0, ui.ipx(6))
+            setOnClickListener { onProfileName() }
+        }
+        logo.addView(nameV)
         bar.addView(logo, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.START))
 
-        val mode = ui.text("Szabad edzés", 20, INK, ui.medium).apply {
+        modePill = ui.text("", 20, INK, ui.medium).apply {
             background = ui.rounded(PILL, 30)
             setPadding(ui.ipx(40), ui.ipx(14), ui.ipx(40), ui.ipx(14))
+            setOnClickListener { openMode() }
         }
-        bar.addView(mode, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER_HORIZONTAL))
+        bar.addView(modePill, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER_HORIZONTAL))
 
         val right = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        profilePill = ui.pill(profile.name) { onProfilePill() }.apply {
-            background = ui.rounded(BAR, 30)
-            setTextColor(Color.WHITE)
-        }
-        right.addView(profilePill)
-        right.addView(ui.pill("NAPLÓ") { startActivity(Intent(this, LogActivity::class.java)) },
-            ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(14) })
-        right.addView(ui.pill("BEÁLLÍTÁSOK") { showSettings() },
+        right.addView(ui.pill("NAPLÓ") { startActivity(Intent(this, LogActivity::class.java)) })
+        right.addView(ui.pill("BEÁLLÍTÁSOK") { openSettings() },
             ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(14) })
         bar.addView(right, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.END))
         return bar
@@ -372,19 +397,22 @@ class MainActivity : Activity() {
         })
 
         val timeCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        timeCol.addView(ui.label("ELTELT IDŐ"))
+        timeLabelV = ui.label("ELTELT IDŐ")
+        timeCol.addView(timeLabelV)
         timeV = ui.bigValue(BIG_VALUE)
         timeCol.addView(timeV, ui.lp(MATCH_PARENT, ui.ipx(BIG_H)).apply { topMargin = ui.ipx(14) })
         val progressRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
+        this.progressRow = progressRow
         val track = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             background = ui.rounded(TRACK, 7)
             clipToOutline = true
         }
-        progressFill = View(this).apply { background = ui.rounded(YELLOW, 7) }
+        progressFillBg = ui.rounded(YELLOW, 7)
+        progressFill = View(this).apply { background = progressFillBg }
         progressRest = View(this)
         track.addView(progressFill, ui.lp(0, MATCH_PARENT, 0f))
         track.addView(progressRest, ui.lp(0, MATCH_PARENT, 1f))
@@ -529,6 +557,7 @@ class MainActivity : Activity() {
 
     companion object {
         private const val MIN_SAVED_MS = 60_000L
+        private const val REQ_SETTINGS = 1
 
         private const val BAR_H = 145
         private const val BIG_VALUE = 165

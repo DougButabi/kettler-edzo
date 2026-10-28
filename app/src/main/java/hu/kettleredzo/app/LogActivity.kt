@@ -143,7 +143,7 @@ class LogActivity : Activity() {
             background = ui.rounded(CARD, 20)
             setPadding(ui.ipx(26), ui.ipx(18), ui.ipx(26), ui.ipx(18))
         }
-        card.addView(ui.text(dateFormat.format(Date(w.startedAt)), 20, MUTED, ui.medium))
+        card.addView(ui.text(dateFormat.format(Date(w.startedAt)) + "   ·   " + w.modeLabel, 20, MUTED, ui.medium))
         card.addView(
             ui.text(
                 "${formatTime(w.movingMs)}   ·   ${formatNum(w.distanceKm, 2)} km   ·   ${formatNum(w.kcal, 0)} kcal",
