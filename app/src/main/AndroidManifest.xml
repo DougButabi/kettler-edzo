@@ -13,7 +13,7 @@
         android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
 
         <activity
-            android:name=".MainActivity"
+            android:name=".ProfileActivity"
             android:exported="true"
             android:screenOrientation="sensorLandscape">
             <intent-filter>
@@ -21,6 +21,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <activity
+            android:name=".LogActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
 
         <service
             android:name=".WorkoutService"

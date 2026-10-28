@@ -84,7 +84,7 @@ class WorkoutService : Service() {
         s.connected = true
         when (id) {
             ID_RPM -> s.rpm = value
-            ID_SPEED -> s.speedKmh = value
+            ID_SPEED -> s.onSpeed(value)
             ID_DISTANCE -> s.onTotalKm(value)
             else -> return
         }

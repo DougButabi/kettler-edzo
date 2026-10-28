@@ -15,8 +15,11 @@ object KettlerState {
     // Az aktuális (vagy utolsó) edzés
     var running = false
     var paused = false
+    var profileId = -1L
+    var startedAt = 0L
     var movingMs = 0L
     var workoutKm = 0.0
+    var maxSpeedKmh = 0.0
     private var lastTotalKm = Double.NaN
 
     var activityVisible = false
@@ -32,12 +35,20 @@ object KettlerState {
     fun removeListener(l: () -> Unit) = listeners.remove(l)
     fun notifyChanged() = listeners.toList().forEach { it() }
 
-    fun start() {
+    fun start(profileId: Long) {
+        this.profileId = profileId
         running = true
         paused = false
+        startedAt = System.currentTimeMillis()
         movingMs = 0
         workoutKm = 0.0
+        maxSpeedKmh = 0.0
         lastTotalKm = totalKm
+    }
+
+    fun onSpeed(kmh: Double) {
+        speedKmh = kmh
+        if (isCounting && kmh > maxSpeedKmh) maxSpeedKmh = kmh
     }
 
     fun pause() {
