@@ -16,7 +16,7 @@ import android.widget.TextView
 // Edzésmód választása: szabad, táv, kalória, idő vagy a kézikönyv kezdő programja.
 class ModeActivity : Activity() {
     private lateinit var ui: Ui
-    private lateinit var right: LinearLayout
+    private lateinit var pane: LinearLayout
     private val modeButtons = mutableMapOf<WorkoutMode, TextView>()
 
     private var mode = WorkoutMode.FREE
@@ -48,11 +48,11 @@ class ModeActivity : Activity() {
         }
         root.addView(ScrollView(this).apply { addView(left) }, ui.lp(0, MATCH_PARENT, 0.36f))
 
-        right = LinearLayout(this).apply {
+        pane = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(ui.ipx(40), ui.ipx(120), ui.ipx(60), ui.ipx(60))
         }
-        root.addView(ScrollView(this).apply { addView(right) }, ui.lp(0, MATCH_PARENT, 0.64f))
+        root.addView(ScrollView(this).apply { addView(pane) }, ui.lp(0, MATCH_PARENT, 0.64f))
         setContentView(root)
         select(mode)
     }
@@ -70,7 +70,7 @@ class ModeActivity : Activity() {
     private fun select(m: WorkoutMode) {
         mode = m
         modeButtons.forEach { (k, v) -> ui.setChosen(v, k == m) }
-        right.removeAllViews()
+        pane.removeAllViews()
         goalField = null
         errorV = null
         when (m) {
@@ -84,14 +84,14 @@ class ModeActivity : Activity() {
             WorkoutMode.PROGRAM -> buildProgram()
         }
         errorV = ui.text("", 22, DANGER, ui.medium)
-        right.addView(errorV, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
+        pane.addView(errorV, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
         val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         buttons.addView(View(this), ui.lp(0, 1, 1f))
         buttons.addView(ui.button("Mégse", PILL, INK) { finish() }, ui.lp(ui.ipx(200), ui.ipx(85)))
         buttons.addView(ui.button("Kiválasztom", BAR, Color.WHITE) { choose() }, ui.lp(ui.ipx(300), ui.ipx(85)).apply {
             leftMargin = ui.ipx(20)
         })
-        right.addView(buttons, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
+        pane.addView(buttons, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
     }
 
     private fun note(s: String) = ui.text(s, 22, MUTED, ui.regular).apply {
@@ -100,31 +100,31 @@ class ModeActivity : Activity() {
     }
 
     private fun buildFree() {
-        right.addView(ui.label("SZABAD EDZÉS"))
-        right.addView(note("Kötetlen edzés, cél nélkül. Az idő csak tekerés közben megy."), ui.fieldLp())
+        pane.addView(ui.label("SZABAD EDZÉS"))
+        pane.addView(note("Kötetlen edzés, cél nélkül. Az idő csak tekerés közben megy."), ui.fieldLp())
     }
 
     private fun buildGoal(title: String, presets: List<Double>, unit: String, hint: String, decimal: Boolean) {
-        right.addView(ui.label(title))
+        pane.addView(ui.label(title))
         val type = if (decimal) InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL else InputType.TYPE_CLASS_NUMBER
         val field = ui.field(goalText(Prefs.goal(this, mode)), "", type, true)
         goalField = field
-        right.addView(field, ui.fieldLp())
+        pane.addView(field, ui.fieldLp())
 
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         presets.forEachIndexed { i, v ->
             val b = ui.choice("${goalText(v)} $unit", 26) { field.setText(goalText(v)) }
             row.addView(b, ui.lp(0, ui.ipx(70), 1f).apply { if (i > 0) leftMargin = ui.ipx(16) })
         }
-        right.addView(row, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(20) })
-        right.addView(note(hint), ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
+        pane.addView(row, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(20) })
+        pane.addView(note(hint), ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
     }
 
     private fun buildProgram() {
         val done = Db.get(this).completedProgramCount(Prefs.currentProfileId(this))
         val recommended = Programs.recommendedWeek(done)
-        right.addView(ui.label("A KÉZIKÖNYV KEZDŐ PROGRAMJA"))
-        right.addView(note(
+        pane.addView(ui.label("A KÉZIKÖNYV KEZDŐ PROGRAMJA"))
+        pane.addView(note(
             "Heti ${Programs.SESSIONS_PER_WEEK} alkalom. Előtte és utána kb. 5 perc gimnasztika " +
                 "bemelegítésnek és levezetésnek. Eddig $done programot csináltál végig.",
         ), ui.fieldLp())
@@ -157,7 +157,7 @@ class ModeActivity : Activity() {
                 refreshCards()
             }
             cards += p.week to card
-            right.addView(card, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(16) })
+            pane.addView(card, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(16) })
         }
         refreshCards()
     }
