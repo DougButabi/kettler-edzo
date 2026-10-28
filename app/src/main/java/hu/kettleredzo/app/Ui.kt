@@ -11,6 +11,8 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.view.inputmethod.EditorInfo
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -32,6 +34,7 @@ val BAR_LINE: Int = Color.parseColor("#4A4A4A")
 val BUTTON: Int = Color.parseColor("#ECEAE6")
 val GREEN: Int = Color.parseColor("#8FD18F")
 val ORANGE: Int = Color.parseColor("#F0B070")
+val DANGER: Int = Color.parseColor("#B3473B")
 
 // Közös építőkockák a képernyőkhöz. A méreteket a 904 px magas mintaterv pixeleiben
 // adjuk meg, és a képernyő magasságához skálázzuk őket.
@@ -108,6 +111,13 @@ class Ui(private val ctx: Context) {
         }
 
     fun toast(msg: String) = Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+}
+
+// Fekvő módban a billentyűzet alapból az egész képernyőt elfoglalja, és csak a szerkesztett
+// mezőt mutatja. Ez kikapcsolja, és a billentyűzeten „Tovább” / „Kész” gomb lesz.
+fun EditText.compactKeyboard(last: Boolean) {
+    imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI or EditorInfo.IME_FLAG_NO_FULLSCREEN or
+        (if (last) EditorInfo.IME_ACTION_DONE else EditorInfo.IME_ACTION_NEXT)
 }
 
 // Edzés közben a rendszersávok ne vegyenek el helyet.

@@ -1,25 +1,16 @@
 package hu.kettleredzo.app
 
 import android.app.Activity
-import android.app.AlertDialog
-import android.content.DialogInterface
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.RadioButton
-import android.widget.RadioGroup
 import android.widget.ScrollView
-import android.widget.TextView
-import java.util.Calendar
-import kotlin.math.roundToInt
 
 // Indító képernyő: ki edz most? Koppintás = belépés, hosszú nyomás = szerkesztés / törlés.
 class ProfileActivity : Activity() {
@@ -103,7 +94,7 @@ class ProfileActivity : Activity() {
             ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
         card.setOnClickListener { select(p) }
         card.setOnLongClickListener {
-            editProfile(p)
+            editProfile(p.id)
             true
         }
         return card
@@ -129,106 +120,15 @@ class ProfileActivity : Activity() {
         finish()
     }
 
-    private fun editProfile(p: Profile?) {
-        val pad = (24 * resources.displayMetrics.density).roundToInt()
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad / 2, pad, 0)
-        }
-        val name = EditText(this).apply {
-            setText(p?.name ?: "")
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
-        }
-        val year = EditText(this).apply {
-            hint = "pl. 1985"
-            setText(p?.birthYear?.toString() ?: "")
-            inputType = InputType.TYPE_CLASS_NUMBER
-        }
-        val weight = EditText(this).apply {
-            hint = "pl. 80"
-            setText(p?.let { weightText(it.weightKg).replace(',', '.') } ?: "")
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
-        }
-        val sex = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
-        sex.addView(RadioButton(this).apply {
-            id = ID_MALE
-            text = "Férfi"
-        })
-        sex.addView(RadioButton(this).apply {
-            id = ID_FEMALE
-            text = "Nő"
-        })
-        when (p?.sex) {
-            Sex.MALE -> sex.check(ID_MALE)
-            Sex.FEMALE -> sex.check(ID_FEMALE)
-            null -> {}
-        }
-        box.addView(TextView(this).apply { text = "Név" })
-        box.addView(name)
-        box.addView(TextView(this).apply { text = "Születési év" })
-        box.addView(year)
-        box.addView(TextView(this).apply { text = "Testsúly (kg)" })
-        box.addView(weight)
-        box.addView(TextView(this).apply { text = "Nem" })
-        box.addView(sex)
-
-        val builder = AlertDialog.Builder(this)
-            .setTitle(if (p == null) "Új profil" else "Profil szerkesztése")
-            .setView(box)
-            .setPositiveButton("Mentés", null)
-            .setNegativeButton("Mégse", null)
-        if (p != null) builder.setNeutralButton("Törlés") { _, _ -> confirmDelete(p) }
-        val dialog = builder.create()
-
-        // A Mentés gomb csak akkor zárja be az ablakot, ha minden adat rendben van.
-        dialog.setOnShowListener {
-            dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener {
-                val n = name.text.toString().trim()
-                val y = year.text.toString().trim().toIntOrNull()
-                val w = weight.text.toString().trim().replace(',', '.').toDoubleOrNull()
-                val s = when (sex.checkedRadioButtonId) {
-                    ID_MALE -> Sex.MALE
-                    ID_FEMALE -> Sex.FEMALE
-                    else -> null
-                }
-                val thisYear = Calendar.getInstance().get(Calendar.YEAR)
-                val error = when {
-                    n.isEmpty() -> "Add meg a nevet."
-                    y == null || y !in 1900..thisYear -> "A születési év nem jó."
-                    w == null || w < 20 || w > 300 -> "A testsúly nem jó (kg-ban add meg)."
-                    s == null -> "Válaszd ki a nemet."
-                    else -> null
-                }
-                if (error != null) {
-                    ui.toast(error)
-                    return@setOnClickListener
-                }
-                Db.get(this).saveProfile(Profile(p?.id ?: 0L, n, y!!, w!!, s!!))
-                dialog.dismiss()
-                refresh()
-            }
-        }
-        dialog.show()
-    }
-
-    private fun confirmDelete(p: Profile) {
-        AlertDialog.Builder(this)
-            .setTitle("Törlöd ${p.name} profilját?")
-            .setMessage("Az összes edzése is törlődik a naplóból. Ezt nem lehet visszavonni.")
-            .setPositiveButton("Törlés") { _, _ ->
-                Db.get(this).deleteProfile(p.id)
-                if (Prefs.currentProfileId(this) == p.id) Prefs.setCurrentProfileId(this, -1)
-                refresh()
-            }
-            .setNegativeButton("Mégse", null)
-            .show()
+    private fun editProfile(id: Long?) {
+        val intent = Intent(this, ProfileEditActivity::class.java)
+        if (id != null) intent.putExtra(ProfileEditActivity.EXTRA_PROFILE_ID, id)
+        startActivity(intent)
     }
 
     private fun weightText(kg: Double) = if (kg % 1.0 == 0.0) kg.toInt().toString() else formatNum(kg, 1)
 
     companion object {
         private const val COLUMNS = 4
-        private const val ID_MALE = 1001
-        private const val ID_FEMALE = 1002
     }
 }

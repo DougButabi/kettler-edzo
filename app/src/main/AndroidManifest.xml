@@ -27,6 +27,13 @@
             android:exported="false"
             android:screenOrientation="sensorLandscape" />
 
+        <!-- adjustPan: a billentyűzet felett mindig látszik a szerkesztett mező -->
+        <activity
+            android:name=".ProfileEditActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:windowSoftInputMode="adjustPan|stateHidden" />
+
         <activity
             android:name=".LogActivity"
             android:exported="false"

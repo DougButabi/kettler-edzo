@@ -228,10 +228,12 @@ class MainActivity : Activity() {
             hint = "pl. 192.168.1.50"
             setText(Prefs.host(this@MainActivity))
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            compactKeyboard(false)
         }
         val goal = EditText(this).apply {
             setText(Prefs.goalMin(this@MainActivity).toString())
             inputType = InputType.TYPE_CLASS_NUMBER
+            compactKeyboard(true)
         }
         val overlay = CheckBox(this).apply {
             text = "Overlay-sáv más appok (pl. Kodi) fölött"
