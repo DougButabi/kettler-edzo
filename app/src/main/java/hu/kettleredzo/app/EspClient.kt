@@ -1,0 +1,88 @@
+package hu.kettleredzo.app
+
+import android.util.Log
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.text.Normalizer
+
+// Az ESPHome web_server élő eseményfolyamát (SSE, /events) olvassa egy háttérszálon.
+// Megszakadás után 3 másodpercenként újrapróbálkozik.
+class EspClient(
+    host: String,
+    private val onValue: (id: String, value: Double) -> Unit,
+    private val onConnection: (connected: Boolean, error: String?) -> Unit,
+) {
+    private val url = "http://" + host.trim().removePrefix("http://").trimEnd('/') + "/events"
+
+    @Volatile private var stopped = false
+    @Volatile private var conn: HttpURLConnection? = null
+    private val thread = Thread { loop() }.apply { isDaemon = true }
+
+    fun start() = thread.start()
+
+    fun stop() {
+        stopped = true
+        thread.interrupt()
+        Thread { conn?.disconnect() }.start()
+    }
+
+    private fun loop() {
+        while (!stopped) {
+            var error: String? = null
+            try {
+                readStream()
+            } catch (e: Exception) {
+                error = e.javaClass.simpleName + ": " + e.message
+                Log.w(TAG, "Kapcsolat megszakadt ($url): $error")
+            }
+            if (stopped) break
+            onConnection(false, error)
+            try {
+                Thread.sleep(3000)
+            } catch (_: InterruptedException) {
+            }
+        }
+    }
+
+    private fun readStream() {
+        val c = URL(url).openConnection() as HttpURLConnection
+        conn = c
+        c.connectTimeout = 5000
+        c.readTimeout = 20000 // az ESP 10 mp-enként pingel, ennyi csend után halottnak vesszük
+        c.setRequestProperty("Accept", "text/event-stream")
+        c.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+            onConnection(true, null)
+            var event = ""
+            val data = StringBuilder()
+            while (!stopped) {
+                val line = reader.readLine() ?: break
+                when {
+                    line.isEmpty() -> {
+                        if (event == "state" && data.isNotEmpty()) handleState(data.toString())
+                        event = ""
+                        data.setLength(0)
+                    }
+                    line.startsWith("event:") -> event = line.substring(6).trim()
+                    line.startsWith("data:") -> data.append(line.substring(5).trim())
+                }
+            }
+        }
+    }
+
+    private fun handleState(json: String) {
+        try {
+            val o = JSONObject(json)
+            val value = o.optDouble("value", Double.NaN)
+            if (value.isNaN()) return
+            val id = Normalizer.normalize(o.optString("id"), Normalizer.Form.NFC)
+            onValue(id, value)
+        } catch (e: Exception) {
+            Log.w(TAG, "Hibás esemény: $json")
+        }
+    }
+
+    companion object {
+        private const val TAG = "EspClient"
+    }
+}
