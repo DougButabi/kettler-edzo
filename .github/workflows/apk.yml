@@ -1,0 +1,52 @@
+name: APK fordítás
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Aláírókulcs (csak az első futáskor jön létre)
+        run: |
+          if [ ! -f keystore/kettler.jks ]; then
+            mkdir -p keystore
+            keytool -genkeypair -keystore keystore/kettler.jks \
+              -storepass kettler123 -keypass kettler123 -alias kettler \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Kettler edzoapp"
+            git config user.name "github-actions"
+            git config user.email "github-actions@users.noreply.github.com"
+            git add keystore/kettler.jks
+            git commit -m "Aláírókulcs létrehozása [skip ci]"
+            git push
+          fi
+
+      - name: Fordítás
+        run: gradle assembleRelease -PversionCode=${{ github.run_number }}
+
+      - name: Kiadás „legujabb” néven (állandó letöltési link)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk kettler-edzo.apk
+          gh release delete legujabb --yes --cleanup-tag || true
+          gh release create legujabb kettler-edzo.apk \
+            --title "Legújabb build (#${{ github.run_number }})" \
+            --notes "Verzió: 0.1.${{ github.run_number }}" \
+            --target ${{ github.sha }}
