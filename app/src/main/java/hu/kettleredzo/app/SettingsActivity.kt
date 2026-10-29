@@ -5,34 +5,42 @@ import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 
-// Beállítások teljes képernyőn. A „Kilépés az appból” RESULT_EXIT eredménnyel tér vissza,
-// a kilépést (edzés mentése, szolgáltatás leállítása) az edzésképernyő végzi el.
-class SettingsActivity : Activity() {
+// Beállítások menürendszer: bal oldalt a menüpontok, jobb oldalt a kiválasztott pont.
+// A „Kilépés az appból” RESULT_EXIT eredménnyel tér vissza, a kilépést
+// (edzés mentése, szolgáltatás leállítása) az edzésképernyő végzi el.
+class SettingsActivity : KettlerActivity() {
+    private enum class Section(val title: String) {
+        CONNECTION("Kapcsolat"),
+        DISPLAY("Kijelző"),
+        TRAINING("Edzés"),
+        USERS("Felhasználók"),
+        ABOUT("Névjegy"),
+    }
+
     private lateinit var ui: Ui
-    private lateinit var hostE: EditText
-    private lateinit var statusV: TextView
-    private lateinit var overlayOn: TextView
-    private lateinit var overlayOff: TextView
-    private lateinit var permissionBtn: View
-    private var overlay = true
+    private lateinit var pane: LinearLayout
+    private val navButtons = mutableMapOf<Section, TextView>()
+    private var section = Section.CONNECTION
+    private var statusV: TextView? = null
+    private val handler = Handler(Looper.getMainLooper())
 
     private val listener: () -> Unit = { renderStatus() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ui = Ui(this)
-        overlay = Prefs.overlay(this)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -40,67 +48,27 @@ class SettingsActivity : Activity() {
         }
 
         val left = ui.sidePanel("Beállítások")
-        left.addView(ui.label("ESP32 KAPCSOLAT"), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(60) })
-        statusV = ui.text("", 24, INK, ui.medium).apply {
-            maxLines = 4
-            ellipsize = null
+        for (s in Section.entries) {
+            val b = ui.choice(s.title) { show(s) }
+            navButtons[s] = b
+            left.addView(b, ui.lp(MATCH_PARENT, ui.ipx(78)).apply { topMargin = ui.ipx(if (s.ordinal == 0) 40 else 14) })
         }
-        left.addView(statusV, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(12) })
-        val version = packageManager.getPackageInfo(packageName, 0).versionName
-        left.addView(ui.text("Verzió: $version", 18, MUTED, ui.regular), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
-            topMargin = ui.ipx(40)
-        })
-        root.addView(left, ui.lp(0, MATCH_PARENT, 0.38f))
+        left.addView(View(this), ui.lp(MATCH_PARENT, 0, 1f))
+        left.addView(ui.button("← Vissza", PILL, INK) { finish() }, ui.lp(MATCH_PARENT, ui.ipx(78)))
+        root.addView(left, ui.lp(0, MATCH_PARENT, 0.34f))
 
-        val form = LinearLayout(this).apply {
+        pane = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(ui.ipx(20), ui.ipx(120), ui.ipx(60), ui.ipx(60))
+            setPadding(ui.ipx(40), ui.ipx(120), ui.ipx(60), ui.ipx(60))
         }
-        form.addView(ui.label("ESP32 IP-CÍME"))
-        hostE = ui.field(Prefs.host(this), "pl. 192.168.1.50", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, true)
-        form.addView(hostE, ui.fieldLp())
-
-        form.addView(ui.label("OVERLAY-SÁV A KODI FÖLÖTT"), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
-            topMargin = ui.ipx(36)
-        })
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        overlayOn = ui.choice("Be") { overlay = true; renderOverlay() }
-        overlayOff = ui.choice("Ki") { overlay = false; renderOverlay() }
-        row.addView(overlayOn, ui.lp(0, ui.ipx(90), 1f))
-        row.addView(overlayOff, ui.lp(0, ui.ipx(90), 1f).apply { leftMargin = ui.ipx(30) })
-        form.addView(row, ui.fieldLp())
-
-        permissionBtn = ui.button("Engedély megadása az overlay-hez", PILL, INK) {
-            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-        }.apply { setPadding(ui.ipx(30), 0, ui.ipx(30), 0) }
-        form.addView(permissionBtn, ui.lp(WRAP_CONTENT, ui.ipx(75)).apply { topMargin = ui.ipx(20) })
-
-        val buttons = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        buttons.addView(ui.button("Kilépés az appból", DANGER, Color.WHITE) {
-            setResult(RESULT_EXIT)
-            finish()
-        }.apply { setPadding(ui.ipx(30), 0, ui.ipx(30), 0) }, ui.lp(WRAP_CONTENT, ui.ipx(85)))
-        buttons.addView(View(this), ui.lp(0, 1, 1f))
-        buttons.addView(ui.button("Mégse", PILL, INK) { finish() }, ui.lp(ui.ipx(200), ui.ipx(85)))
-        buttons.addView(ui.button("Mentés", BAR, Color.WHITE) { save() }, ui.lp(ui.ipx(260), ui.ipx(85)).apply {
-            leftMargin = ui.ipx(20)
-        })
-        form.addView(buttons, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(48) })
-
-        root.addView(ScrollView(this).apply { addView(form) }, ui.lp(0, MATCH_PARENT, 0.62f))
+        root.addView(ScrollView(this).apply { addView(pane) }, ui.lp(0, MATCH_PARENT, 0.66f))
         setContentView(root)
-        renderOverlay()
     }
 
     override fun onResume() {
         super.onResume()
-        hideSystemBars()
         KettlerState.addListener(listener)
-        renderStatus()
-        renderOverlay() // az engedély közben megváltozhatott
+        show(section) // pl. az overlay-engedély vagy egy profil közben megváltozhatott
     }
 
     override fun onPause() {
@@ -108,37 +76,165 @@ class SettingsActivity : Activity() {
         super.onPause()
     }
 
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemBars()
-    }
-
-    private fun renderStatus() {
-        val s = KettlerState
-        val host = Prefs.host(this)
-        when {
-            host.isBlank() -> status("Nincs megadva cím.", DANGER)
-            s.connected -> status("● Kapcsolódva\n$host", Color.parseColor("#2E7D32"))
-            else -> status("Kapcsolódás: $host…" + (s.lastError?.let { "\n$it" } ?: ""), DANGER)
+    private fun show(s: Section) {
+        section = s
+        navButtons.forEach { (k, v) -> ui.setChosen(v, k == s) }
+        pane.removeAllViews()
+        statusV = null
+        when (s) {
+            Section.CONNECTION -> buildConnection()
+            Section.DISPLAY -> buildDisplay()
+            Section.TRAINING -> buildTraining()
+            Section.USERS -> buildUsers()
+            Section.ABOUT -> buildAbout()
         }
     }
 
-    private fun status(text: String, color: Int) {
-        statusV.text = text
-        statusV.setTextColor(color)
+    // ---- Kapcsolat ----
+
+    private fun buildConnection() {
+        pane.addView(ui.label("KÜLSŐ ESZKÖZ IP-CÍME"))
+        val host = ui.field(Prefs.host(this), "pl. 192.168.1.50", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, true)
+        pane.addView(host, ui.fieldLp())
+        pane.addView(ui.button("Mentés", BAR, Color.WHITE) {
+            Prefs.setHost(this, host.text.toString())
+            startForegroundService(Intent(this, WorkoutService::class.java).setAction(WorkoutService.ACTION_RECONNECT))
+            ui.toast("Elmentve, újracsatlakozás…")
+        }, ui.lp(ui.ipx(260), ui.ipx(85)).apply { topMargin = ui.ipx(20) })
+
+        pane.addView(ui.label("ÁLLAPOT"), sectionLp())
+        val sv = note("")
+        statusV = sv
+        pane.addView(sv, ui.fieldLp())
+        pane.addView(note("A külső eszköz (ESP32) küldi a fordulatszámot, a sebességet és a távot."), sectionLp())
+        renderStatus()
     }
 
-    private fun renderOverlay() {
-        ui.setChosen(overlayOn, overlay)
-        ui.setChosen(overlayOff, !overlay)
-        permissionBtn.visibility = if (overlay && !Settings.canDrawOverlays(this)) View.VISIBLE else View.GONE
+    private fun renderStatus() {
+        val v = statusV ?: return
+        val s = KettlerState
+        val host = Prefs.host(this)
+        val (text, color) = when {
+            host.isBlank() -> "Nincs megadva cím." to DANGER
+            s.connected -> "● Kapcsolódva ($host)" to Color.parseColor("#2E7D32")
+            else -> "Nincs kapcsolat: $host" + (s.lastError?.let { "\n$it" } ?: "") to DANGER
+        }
+        v.text = text
+        v.setTextColor(color)
     }
 
-    private fun save() {
-        Prefs.setHost(this, hostE.text.toString())
-        Prefs.setOverlay(this, overlay)
-        startForegroundService(Intent(this, WorkoutService::class.java).setAction(WorkoutService.ACTION_RECONNECT))
-        finish()
+    // ---- Kijelző ----
+
+    private fun buildDisplay() {
+        pane.addView(ui.label("OVERLAY-SÁV"))
+        val on = ui.choice("Be") { Prefs.setOverlay(this, true); show(section) }
+        val off = ui.choice("Ki") { Prefs.setOverlay(this, false); show(section) }
+        val overlay = Prefs.overlay(this)
+        ui.setChosen(on, overlay)
+        ui.setChosen(off, !overlay)
+        pane.addView(pair(on, off), ui.fieldLp())
+
+        if (overlay && !Settings.canDrawOverlays(this)) {
+            pane.addView(note("Az overlay-hez engedély kell („Megjelenítés más alkalmazások felett”)."), sectionLp())
+            pane.addView(ui.button("Engedély megadása", PILL, INK) {
+                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+            }, ui.lp(ui.ipx(340), ui.ipx(85)).apply { topMargin = ui.ipx(16) })
+        }
+        pane.addView(note(
+            "Edzés közben más appok (pl. videólejátszó) fölött, a képernyő alján mutatja az adatokat. " +
+                "Az appon belül rejtve marad.",
+        ), sectionLp())
+    }
+
+    // ---- Edzés ----
+
+    private fun buildTraining() {
+        pane.addView(ui.label("FÉKFOKOZATOK SZÁMA"))
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val value = ui.text(Prefs.levelCount(this).toString(), 50, INK, ui.bold).apply {
+            gravity = Gravity.CENTER
+            minWidth = ui.ipx(120)
+        }
+        fun change(d: Int) {
+            Prefs.setLevelCount(this, Prefs.levelCount(this) + d)
+            value.text = Prefs.levelCount(this).toString()
+        }
+        row.addView(ui.choice("−", 40) { change(-1) }, ui.lp(ui.ipx(90), ui.ipx(90)))
+        row.addView(value)
+        row.addView(ui.choice("+", 40) { change(1) }, ui.lp(ui.ipx(90), ui.ipx(90)))
+        pane.addView(row, ui.fieldLp())
+        pane.addView(note("Ahány fokozat a gép fékerő-állítóján van. Az edzésképernyőn ennyiig lehet állítani."), ui.fieldLp())
+
+        pane.addView(ui.label("HANGJELZÉSEK"), sectionLp())
+        val on = ui.choice("Be") { Prefs.setBeeps(this, true); show(section) }
+        val off = ui.choice("Ki") { Prefs.setBeeps(this, false); show(section) }
+        val beeps = Prefs.beeps(this)
+        ui.setChosen(on, beeps)
+        ui.setChosen(off, !beeps)
+        pane.addView(pair(on, off), ui.fieldLp())
+        pane.addView(ui.button("Hang kipróbálása", PILL, INK) { Beeper.test(handler) },
+            ui.lp(ui.ipx(340), ui.ipx(85)).apply { topMargin = ui.ipx(16) })
+        pane.addView(note("Programszakasz váltásakor és a cél elérésekor szól. A hangerő az Android értesítési hangereje."), ui.fieldLp())
+    }
+
+    // ---- Felhasználók ----
+
+    private fun buildUsers() {
+        pane.addView(ui.label("FELHASZNÁLÓK"))
+        for (p in Db.get(this).profiles()) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = ui.rounded(CARD, 24)
+                setPadding(ui.ipx(28), ui.ipx(18), ui.ipx(28), ui.ipx(18))
+                setOnClickListener { editProfile(p.id) }
+            }
+            card.addView(ui.text(p.name, 32, INK, ui.bold))
+            val sex = if (p.sex == Sex.MALE) "férfi" else "nő"
+            card.addView(ui.text("${p.age} év · ${goalText(p.weightKg)} kg · $sex", 20, MUTED, ui.regular),
+                ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(6) })
+            pane.addView(card, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(14) })
+        }
+        pane.addView(ui.button("+ Új profil", BAR, Color.WHITE) { editProfile(null) },
+            ui.lp(ui.ipx(300), ui.ipx(85)).apply { topMargin = ui.ipx(24) })
+        pane.addView(note("Koppints egy profilra a szerkesztéshez vagy törléshez. Felhasználót váltani a bal felső névre koppintva lehet."), sectionLp())
+    }
+
+    private fun editProfile(id: Long?) {
+        val intent = Intent(this, ProfileEditActivity::class.java)
+        if (id != null) intent.putExtra(ProfileEditActivity.EXTRA_PROFILE_ID, id)
+        startActivity(intent)
+    }
+
+    // ---- Névjegy ----
+
+    private fun buildAbout() {
+        pane.addView(ui.text("Kettler edző", 44, INK, ui.bold))
+        val version = packageManager.getPackageInfo(packageName, 0).versionName
+        pane.addView(note("Verzió: $version"), ui.fieldLp())
+        pane.addView(note("Kettler Vito XL elliptikus trénerhez. Az edzésnapló csak ezen a tableten tárolódik."), ui.fieldLp())
+        pane.addView(ui.button("Kilépés az appból", DANGER, Color.WHITE) {
+            setResult(RESULT_EXIT)
+            finish()
+        }, ui.lp(ui.ipx(340), ui.ipx(85)).apply { topMargin = ui.ipx(48) })
+        pane.addView(note("Ha fut edzés, előbb elmenti. Leállítja a háttérben futó kapcsolatot is."), ui.fieldLp())
+    }
+
+    // ---- Építőkockák ----
+
+    private fun note(s: String) = ui.text(s, 22, MUTED, ui.regular).apply {
+        maxLines = 4
+        ellipsize = null
+    }
+
+    private fun sectionLp() = ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(40) }
+
+    private fun pair(a: View, b: View) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        addView(a, ui.lp(0, ui.ipx(90), 1f))
+        addView(b, ui.lp(0, ui.ipx(90), 1f).apply { leftMargin = ui.ipx(30) })
     }
 
     companion object {

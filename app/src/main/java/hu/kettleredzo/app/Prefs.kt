@@ -41,12 +41,18 @@ object Prefs {
     fun currentProfileId(c: Context): Long = prefs(c).getLong("profileId", -1)
     fun setCurrentProfileId(c: Context, value: Long) = prefs(c).edit().putLong("profileId", value).apply()
 
-    // Kézzel beállított fékfokozat (a gép nem tudja megmérni)
+    // Kézzel beállított fékfokozat (a gép nem tudja megmérni). A fokozatok száma beállítható.
     const val LEVEL_MIN = 1
-    const val LEVEL_MAX = 8
-    fun level(c: Context): Int = prefs(c).getInt("level", 1).coerceIn(LEVEL_MIN, LEVEL_MAX)
+    const val LEVEL_COUNT_MAX = 30
+    fun levelCount(c: Context): Int = prefs(c).getInt("levelCount", 8).coerceIn(2, LEVEL_COUNT_MAX)
+    fun setLevelCount(c: Context, value: Int) =
+        prefs(c).edit().putInt("levelCount", value.coerceIn(2, LEVEL_COUNT_MAX)).apply()
+    fun level(c: Context): Int = prefs(c).getInt("level", 1).coerceIn(LEVEL_MIN, levelCount(c))
     fun setLevel(c: Context, value: Int) =
-        prefs(c).edit().putInt("level", value.coerceIn(LEVEL_MIN, LEVEL_MAX)).apply()
+        prefs(c).edit().putInt("level", value.coerceIn(LEVEL_MIN, levelCount(c))).apply()
+
+    fun beeps(c: Context): Boolean = prefs(c).getBoolean("beeps", true)
+    fun setBeeps(c: Context, value: Boolean) = prefs(c).edit().putBoolean("beeps", value).apply()
 }
 
 val HU: Locale = Locale.forLanguageTag("hu")

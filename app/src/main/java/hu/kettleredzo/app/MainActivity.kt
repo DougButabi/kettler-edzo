@@ -24,9 +24,10 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 // Edzésképernyő
-class MainActivity : Activity() {
+class MainActivity : KettlerActivity() {
     private lateinit var ui: Ui
     private lateinit var profile: Profile
+    private var photoSex: Sex? = null
 
     private lateinit var nameV: TextView
     private lateinit var modePill: TextView
@@ -80,25 +81,22 @@ class MainActivity : Activity() {
             openProfiles()
             return
         }
+        // Ha közben a profil nemét átírták, a fotó miatt újraépítjük a képernyőt.
+        if (p.sex != photoSex) {
+            recreate()
+            return
+        }
         profile = p
         nameV.text = p.name
         Prefs.applyMode(this)
-        hideSystemBars()
-        KettlerState.activityVisible = true
         KettlerState.addListener(listener)
         startForegroundService(Intent(this, WorkoutService::class.java))
         render()
     }
 
     override fun onPause() {
-        KettlerState.activityVisible = false
         KettlerState.removeListener(listener)
         super.onPause()
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemBars()
     }
 
     // Edzés közben az a profil számít, amelyikkel elindult.
@@ -127,12 +125,8 @@ class MainActivity : Activity() {
         levelV.text = Prefs.level(this).toString()
         rpmV.text = formatNum(s.rpm, 0)
 
-        val host = Prefs.host(this)
-        when {
-            host.isBlank() -> status("Nincs megadva az ESP32 címe", ORANGE)
-            s.connected -> status("● Kapcsolódva", GREEN)
-            else -> status("Kapcsolódás: $host…" + (s.lastError?.let { "\n$it" } ?: ""), ORANGE)
-        }
+        // A részletek (cím, hibaüzenet) a Beállítások / Kapcsolat oldalon látszanak.
+        if (s.connected) status("● Kapcsolódva", GREEN) else status("Nincs kapcsolat", RED)
 
         when {
             !s.running -> mainButton(R.drawable.ic_play, "Indítás")
@@ -280,7 +274,7 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle("Engedély kell az overlay-sávhoz")
             .setMessage(
-                "Ahhoz, hogy a Kodi fölött is lásd az adatokat, kapcsold be a " +
+                "Ahhoz, hogy más appok (pl. videólejátszó) fölött is lásd az adatokat, kapcsold be a " +
                     "„Megjelenítés más alkalmazások felett” engedélyt a Kettler edző számára.",
             )
             .setPositiveButton("Beállítások") { _, _ ->
@@ -314,7 +308,10 @@ class MainActivity : Activity() {
     // A fotót a magasságra méretezzük úgy, hogy a gép a bal félbe essen. A jobb oldalt
     // a fotó utolsó oszlopának kinyújtásával töltjük ki, így nem látszik illesztés.
     private fun buildPhoto(root: FrameLayout): View {
-        val bmp = BitmapFactory.decodeResource(resources, R.drawable.trener)
+        // Férfi profilnál férfi, egyébként női fotó (a két kép kompozíciója azonos)
+        photoSex = profile.sex
+        val res = if (profile.sex == Sex.MALE) R.drawable.trener_ferfi else R.drawable.trener
+        val bmp = BitmapFactory.decodeResource(resources, res)
         root.setBackgroundColor(bmp.getPixel(bmp.width - 1, 0))
         val strip = ImageView(this).apply {
             setImageBitmap(Bitmap.createBitmap(bmp, bmp.width - 2, 0, 1, bmp.height))
@@ -494,8 +491,11 @@ class MainActivity : Activity() {
 
         // Ellenállás: a gép nem méri, kézzel állítjuk
         bar.addView(ui.icon(R.drawable.ic_bars, 44, Color.WHITE))
-        val levelCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        levelCol.addView(ui.text("ELLENÁLLÁS", 17, BAR_MUTED, ui.medium, 0.12f))
+        val levelCol = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        levelCol.addView(barLabel("ELLENÁLLÁS"))
         val levelRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -507,8 +507,6 @@ class MainActivity : Activity() {
         }
         levelRow.addView(levelV)
         levelRow.addView(ui.roundButton("+") { changeLevel(1) })
-        levelRow.addView(ui.text("/ ${Prefs.LEVEL_MAX}", 28, BAR_MUTED, ui.regular),
-            ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(14) })
         levelCol.addView(levelRow, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(6) })
         bar.addView(levelCol, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(30) })
 
@@ -520,7 +518,7 @@ class MainActivity : Activity() {
         // Fordulatszám
         bar.addView(ui.icon(R.drawable.ic_refresh, 44, Color.WHITE))
         val rpmCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        rpmCol.addView(ui.text("FORDULAT", 17, BAR_MUTED, ui.medium, 0.12f))
+        rpmCol.addView(barLabel("FORDULAT"))
         val rpmRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         rpmV = ui.text("0", 50, Color.WHITE, ui.bold)
         rpmRow.addView(rpmV)
@@ -531,10 +529,7 @@ class MainActivity : Activity() {
         bar.addView(rpmCol, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(30) })
 
         // Kapcsolat állapota
-        statusV = ui.text("", 16, ORANGE, ui.regular).apply {
-            maxLines = 3
-            gravity = Gravity.END
-        }
+        statusV = ui.text("", 20, RED, ui.medium).apply { gravity = Gravity.END }
         bar.addView(statusV, ui.lp(0, WRAP_CONTENT, 1f).apply {
             leftMargin = ui.ipx(30)
             rightMargin = ui.ipx(30)
@@ -553,6 +548,13 @@ class MainActivity : Activity() {
         mainText = main.getChildAt(1) as TextView
         bar.addView(main, ui.lp(ui.ipx(290), ui.ipx(85)))
         return bar
+    }
+
+    // Felirat az alsó sávban. A betűköz miatt az Android néha kevesebb helyet mér,
+    // és levágná a végét („FORDU…”), ezért nincs kipontozás, és kap egy kis ráhagyást.
+    private fun barLabel(s: String) = ui.text(s, 17, BAR_MUTED, ui.medium, 0.12f).apply {
+        ellipsize = null
+        setPadding(0, 0, ui.ipx(10), 0)
     }
 
     companion object {

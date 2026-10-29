@@ -20,7 +20,7 @@ import java.util.Calendar
 
 // Profil létrehozása / szerkesztése teljes képernyőn, az app stílusában.
 // Indításkor az EXTRA_PROFILE_ID-ben jön a szerkesztett profil; ha hiányzik, új profil készül.
-class ProfileEditActivity : Activity() {
+class ProfileEditActivity : KettlerActivity() {
     private lateinit var ui: Ui
     private var profile: Profile? = null
     private var sex: Sex? = null
@@ -47,16 +47,6 @@ class ProfileEditActivity : Activity() {
         root.addView(buildForm(), ui.lp(0, MATCH_PARENT, 0.62f))
         setContentView(root)
         updateSex()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        hideSystemBars()
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemBars()
     }
 
     // Bal oldal: cím és a névből élőben frissülő monogram

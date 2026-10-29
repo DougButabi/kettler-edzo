@@ -14,7 +14,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 
 // Edzésmód választása: szabad, táv, kalória, idő vagy a kézikönyv kezdő programja.
-class ModeActivity : Activity() {
+class ModeActivity : KettlerActivity() {
     private lateinit var ui: Ui
     private lateinit var pane: LinearLayout
     private val modeButtons = mutableMapOf<WorkoutMode, TextView>()
@@ -55,16 +55,6 @@ class ModeActivity : Activity() {
         root.addView(ScrollView(this).apply { addView(pane) }, ui.lp(0, MATCH_PARENT, 0.64f))
         setContentView(root)
         select(mode)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        hideSystemBars()
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemBars()
     }
 
     private fun select(m: WorkoutMode) {

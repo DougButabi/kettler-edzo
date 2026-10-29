@@ -9,6 +9,8 @@
     <!-- Az ESP32 sima http-n beszél, ezért kell a titkosítatlan forgalom. -->
     <application
         android:label="Kettler edző"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
 

@@ -14,7 +14,7 @@ import java.util.Calendar
 import java.util.Date
 
 // Az aktuális profil edzésnaplója: összesítő, 14 napos diagram és az edzések listája.
-class LogActivity : Activity() {
+class LogActivity : KettlerActivity() {
     private lateinit var ui: Ui
     private lateinit var profile: Profile
     private lateinit var body: LinearLayout
@@ -50,16 +50,6 @@ class LogActivity : Activity() {
         root.addView(body, ui.lp(MATCH_PARENT, 0, 1f).apply { topMargin = ui.ipx(30) })
         setContentView(root)
         build()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        hideSystemBars()
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemBars()
     }
 
     private fun build() {

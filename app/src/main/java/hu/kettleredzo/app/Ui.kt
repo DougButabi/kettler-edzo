@@ -36,6 +36,7 @@ val BUTTON: Int = Color.parseColor("#ECEAE6")
 val GREEN: Int = Color.parseColor("#8FD18F")
 val ORANGE: Int = Color.parseColor("#F0B070")
 val DANGER: Int = Color.parseColor("#B3473B")
+val RED: Int = Color.parseColor("#FF6B5E") // sötét háttéren jól látható piros
 
 // Közös építőkockák a képernyőkhöz. A méreteket a 904 px magas mintaterv pixeleiben
 // adjuk meg, és a képernyő magasságához skálázzuk őket.

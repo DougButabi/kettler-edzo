@@ -35,6 +35,7 @@ class WorkoutService : Service() {
             val dt = now - lastTick
             lastTick = now
             val s = KettlerState
+            Beeper.enabled = Prefs.beeps(this@WorkoutService)
             // Az edzésidő csak akkor megy, ha a gép mozog.
             if (s.isCounting && s.isMoving) s.movingMs += dt
             if (s.isCounting && !s.goalReached) advanceProgram(dt)
@@ -133,7 +134,7 @@ class WorkoutService : Service() {
 
     private fun updateOverlay() {
         val s = KettlerState
-        val wanted = s.running && !s.activityVisible && Prefs.overlay(this) && Settings.canDrawOverlays(this)
+        val wanted = s.running && !s.appVisible && Prefs.overlay(this) && Settings.canDrawOverlays(this)
         if (wanted && overlay == null) addOverlay()
         if (!wanted && overlay != null) removeOverlay()
         overlay?.text = overlayText()
@@ -147,12 +148,11 @@ class WorkoutService : Service() {
             else -> ""
         }
         val goal = s.goalStatus()?.let { "$it     " } ?: ""
+        val hr = s.heartRate?.let { "     $it bpm" } ?: ""
         return prefix + goal + formatTime(s.movingMs) + "     " +
             formatNum(s.speedKmh, 1) + " km/h     " +
-            formatNum(s.rpm, 0) + " rpm     " +
             formatNum(s.workoutKm, 2) + " km     " +
-            formatNum(s.kcal, 0) + " kcal     " +
-            "fokozat " + Prefs.level(this)
+            formatNum(s.kcal, 0) + " kcal" + hr
     }
 
     private fun addOverlay() {

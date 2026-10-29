@@ -13,7 +13,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 
 // Indító képernyő: ki edz most? Koppintás = belépés, hosszú nyomás = szerkesztés / törlés.
-class ProfileActivity : Activity() {
+class ProfileActivity : KettlerActivity() {
     private lateinit var ui: Ui
     private lateinit var grid: LinearLayout
 
@@ -48,13 +48,7 @@ class ProfileActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        hideSystemBars()
         if (::ui.isInitialized) refresh()
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemBars()
     }
 
     private fun refresh() {

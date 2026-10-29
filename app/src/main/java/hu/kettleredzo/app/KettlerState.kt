@@ -33,7 +33,12 @@ object KettlerState {
     var goalReached = false
     private var lastTotalKm = Double.NaN
 
-    var activityVisible = false
+    // Hány képernyője látszik az appnak (lásd KettlerActivity)
+    var visibleScreens = 0
+    val appVisible get() = visibleScreens > 0
+
+    // Pulzus a pántról (a pánt bekötéséig mindig null)
+    var heartRate: Int? = null
 
     val isMoving get() = connected && rpm > 0.5
     val isCounting get() = running && !paused

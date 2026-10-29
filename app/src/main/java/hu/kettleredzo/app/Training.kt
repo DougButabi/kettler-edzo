@@ -81,6 +81,7 @@ fun goalText(v: Double) = if (v % 1.0 == 0.0) v.toLong().toString() else formatN
 
 // Rövid hangjelzések az értesítési hangcsatornán, hogy a Kodi hangja mellett is hallani lehessen.
 object Beeper {
+    var enabled = true
     private var tone: ToneGenerator? = null
 
     private fun gen(): ToneGenerator? = tone ?: try {
@@ -90,11 +91,17 @@ object Beeper {
     }
 
     fun short() {
-        gen()?.startTone(ToneGenerator.TONE_DTMF_1, 150)
+        if (enabled) gen()?.startTone(ToneGenerator.TONE_DTMF_1, 150)
     }
 
     fun long() {
-        gen()?.startTone(ToneGenerator.TONE_DTMF_9, 700)
+        if (enabled) gen()?.startTone(ToneGenerator.TONE_DTMF_9, 700)
+    }
+
+    // A Beállításokból: 3-2-1 és egy hosszú hang, akkor is, ha a hangjelzés ki van kapcsolva.
+    fun test(handler: android.os.Handler) {
+        for (i in 0..2) handler.postDelayed({ gen()?.startTone(ToneGenerator.TONE_DTMF_1, 150) }, i * 1000L)
+        handler.postDelayed({ gen()?.startTone(ToneGenerator.TONE_DTMF_9, 700) }, 3000L)
     }
 
     fun release() {
