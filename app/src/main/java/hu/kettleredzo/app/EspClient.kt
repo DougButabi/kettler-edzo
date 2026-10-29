@@ -7,7 +7,8 @@ import java.net.URL
 import java.text.Normalizer
 
 // Az ESPHome web_server élő eseményfolyamát (SSE, /events) olvassa egy háttérszálon.
-// Megszakadás után 3 másodpercenként újrapróbálkozik.
+// Megszakadás után azonnal újrakapcsolódik; a kiesést csak akkor jelzi, ha GRACE_MS alatt sem sikerül
+// (az ESP időnként bontja a kapcsolatot), utána 3 másodpercenként próbálkozik.
 class EspClient(
     host: String,
     private val onValue: (id: String, value: Double) -> Unit,
@@ -17,6 +18,7 @@ class EspClient(
 
     @Volatile private var stopped = false
     @Volatile private var conn: HttpURLConnection? = null
+    private var lastAlive = 0L // amikor utoljára jött adat az ESP-től
     private val thread = Thread { loop() }.apply { isDaemon = true }
 
     fun start() = thread.start()
@@ -37,9 +39,10 @@ class EspClient(
                 Log.w(TAG, "Kapcsolat megszakadt ($url): $error")
             }
             if (stopped) break
-            onConnection(false, error)
+            val lost = System.currentTimeMillis() - lastAlive > GRACE_MS
+            if (lost) onConnection(false, error)
             try {
-                Thread.sleep(3000)
+                Thread.sleep(if (lost) 3000 else 300)
             } catch (_: InterruptedException) {
             }
         }
@@ -52,11 +55,13 @@ class EspClient(
         c.readTimeout = 20000 // az ESP 10 mp-enként pingel, ennyi csend után halottnak vesszük
         c.setRequestProperty("Accept", "text/event-stream")
         c.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+            lastAlive = System.currentTimeMillis()
             onConnection(true, null)
             var event = ""
             val data = StringBuilder()
             while (!stopped) {
                 val line = reader.readLine() ?: break
+                lastAlive = System.currentTimeMillis()
                 when {
                     line.isEmpty() -> {
                         if (event == "state" && data.isNotEmpty()) handleState(data.toString())
@@ -84,5 +89,6 @@ class EspClient(
 
     companion object {
         private const val TAG = "EspClient"
+        private const val GRACE_MS = 5000L
     }
 }

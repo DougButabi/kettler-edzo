@@ -14,12 +14,18 @@ esp32:
     type: esp-idf
 
 logger:
+  # A szenzorértékek naplóját a web_server az appnak is elküldené: ez csak forgalom.
+  logs:
+    sensor: INFO
+    pulse_meter: INFO
 api:
 ota:
   - platform: esphome
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+  # Energiatakarékos módban a webszerver lassan küld, és az app kapcsolatát bontja.
+  power_save_mode: none
 
 # Ezen keresztül kapja az app az élő adatokat (SSE: http://kettlercontrol.local/events)
 web_server:
@@ -42,6 +48,11 @@ sensor:
     icon: mdi:speedometer
     filters:
       - lambda: return x / ${pulses_per_rev};
+      # Impulzusonként jönne egy érték (másodpercenként ~7): legfeljebb fél mp-enként küldjük,
+      # de a megálláskor jövő nullát mindig, különben a fordulatszám beragadna.
+      - or:
+          - throttle: 0.5s
+          - lambda: 'if (x == 0) return x; return {};'
     total:
       id: kettler_tav
       name: "Táv"
@@ -50,6 +61,8 @@ sensor:
       icon: mdi:map-marker-distance
       filters:
         - lambda: return x / ${pulses_per_rev} * ${meters_per_rev} / 1000.0;
+        # Összesített érték, a kimaradó közbensők nem számítanak
+        - throttle: 0.5s
 
   - platform: template
     name: "Sebesség"
