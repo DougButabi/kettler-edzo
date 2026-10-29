@@ -235,6 +235,7 @@ class MainActivity : KettlerActivity() {
             ),
         )
         ui.toast("Edzés elmentve a naplóba.")
+        Sync.runAsync(this)
     }
 
     private fun exitApp() {

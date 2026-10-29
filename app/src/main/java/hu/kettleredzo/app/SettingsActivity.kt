@@ -42,6 +42,7 @@ class SettingsActivity : KettlerActivity() {
         SIGNALS("Jelzések", Group.BIKE),
         SCREEN("Kijelző", Group.BIKE),
         USERS("Felhasználók", Group.GENERAL),
+        SYNC("Szinkron", Group.GENERAL),
         SOUNDS("Hangjelzések", Group.GENERAL),
         ABOUT("Névjegy", Group.GENERAL),
     }
@@ -113,6 +114,8 @@ class SettingsActivity : KettlerActivity() {
 
     override fun onPause() {
         KettlerState.removeListener(listener)
+        // Kilépéskor a beállításokban (pl. edzésterv, gyakorlatok) tett változások mennek a ULC-be.
+        if (isFinishing) Sync.runAsync(this)
         super.onPause()
     }
 
@@ -134,6 +137,7 @@ class SettingsActivity : KettlerActivity() {
             Section.SIGNALS -> buildSignals()
             Section.SCREEN -> buildRideScreen()
             Section.USERS -> buildUsers()
+            Section.SYNC -> buildSync()
             Section.SOUNDS -> buildSounds()
             Section.ABOUT -> buildAbout()
         }
@@ -401,6 +405,39 @@ class SettingsActivity : KettlerActivity() {
     }
 
     // ==== Általános ====
+
+    // Szinkron a ULC-vel: cím, eszközkulcs (a ULC Edzés oldalán készül), állapot, kézi indítás
+    private fun buildSync() {
+        pane.addView(ui.label("ULC CÍME"))
+        val url = ui.field(Prefs.syncUrl(this), Prefs.DEFAULT_SYNC_URL, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, false)
+        pane.addView(url, ui.fieldLp())
+        pane.addView(ui.label("ESZKÖZKULCS"), sectionLp())
+        val token = ui.field(Prefs.syncToken(this), "a ULC Edzés oldalán készül", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, true)
+        pane.addView(token, ui.fieldLp())
+        val status = note(syncStatusText())
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        row.addView(ui.button("Mentés és szinkron", BAR, Color.WHITE) {
+            Prefs.setSyncUrl(this, url.text.toString().ifBlank { Prefs.DEFAULT_SYNC_URL })
+            Prefs.setSyncToken(this, token.text.toString())
+            if (!Sync.configured(this)) {
+                ui.toast("Add meg az eszközkulcsot.")
+                return@button
+            }
+            status.text = "Szinkronizálás…"
+            Sync.runAsync(this) { if (!isFinishing) status.text = syncStatusText() }
+        }, ui.lp(ui.ipx(360), ui.ipx(85)))
+        pane.addView(row, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(20) })
+        pane.addView(ui.label("UTOLSÓ SZINKRON"), sectionLp())
+        pane.addView(status, ui.fieldLp())
+        pane.addView(ui.note(
+            "A telefon és a tablet a ULC-n keresztül osztozik a profilokon, az edzésterven, a saját gyakorlatokon " +
+                "és a naplón. Otthon, a helyi hálózaton szinkronizál: az app indításakor, edzés mentése után és a " +
+                "beállításokból kilépve. Az eszközkulcsot a ULC Edzés oldalán készítheted.",
+            6,
+        ), sectionLp())
+    }
+
+    private fun syncStatusText() = Prefs.syncStatus(this).ifBlank { "Még nem volt szinkron." }
 
     private fun buildUsers() {
         pane.addView(ui.label("FELHASZNÁLÓK"))

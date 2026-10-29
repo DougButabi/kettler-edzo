@@ -48,6 +48,8 @@ class ProfileActivity : KettlerActivity() {
             topMargin = ui.ipx(40)
         })
         setContentView(root)
+        // Indításkor szinkron a ULC-vel; ha jött új adat (pl. a másik eszközön létrehozott profil), frissítünk.
+        Sync.runAsync(this) { r -> if (r.pulled > 0 && !isFinishing) refresh() }
     }
 
     override fun onResume() {

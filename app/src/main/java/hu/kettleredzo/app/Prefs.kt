@@ -4,10 +4,28 @@ import android.content.Context
 import java.util.Locale
 
 object Prefs {
+    const val DEFAULT_SYNC_URL = "http://192.168.1.78:8091"
+
     private fun prefs(c: Context) = c.getSharedPreferences("beallitasok", Context.MODE_PRIVATE)
 
     fun host(c: Context): String = prefs(c).getString("host", "") ?: ""
     fun setHost(c: Context, value: String) = prefs(c).edit().putString("host", value.trim()).apply()
+
+    // Szinkron a ULC-vel (Ultimate Life Control, otthoni szerver)
+    fun syncUrl(c: Context): String = prefs(c).getString("syncUrl", DEFAULT_SYNC_URL) ?: DEFAULT_SYNC_URL
+    fun setSyncUrl(c: Context, value: String) = prefs(c).edit().putString("syncUrl", value.trim().trimEnd('/')).apply()
+    fun syncToken(c: Context): String = prefs(c).getString("syncToken", "") ?: ""
+    fun setSyncToken(c: Context, value: String) = prefs(c).edit().putString("syncToken", value.trim()).apply()
+
+    // A szerver utoljára látott változás-sorszáma és az utolsó sikeres feltöltés ideje
+    fun syncRev(c: Context): Long = prefs(c).getLong("syncRev", 0)
+    fun syncPushedAt(c: Context): Long = prefs(c).getLong("syncPushedAt", 0)
+    fun setSyncDone(c: Context, rev: Long, pushedAt: Long) =
+        prefs(c).edit().putLong("syncRev", rev).putLong("syncPushedAt", pushedAt).apply()
+
+    // Az utolsó szinkron eredménye a Beállításokhoz (pl. "2026. 10. 29. 15:30 – rendben")
+    fun syncStatus(c: Context): String = prefs(c).getString("syncStatus", "") ?: ""
+    fun setSyncStatus(c: Context, value: String) = prefs(c).edit().putString("syncStatus", value).apply()
 
     fun overlay(c: Context): Boolean = prefs(c).getBoolean("overlay", true)
     fun setOverlay(c: Context, value: Boolean) = prefs(c).edit().putBoolean("overlay", value).apply()

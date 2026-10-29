@@ -57,14 +57,25 @@ Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig 
 - Az overlay csak futó edzés közben látszik, és kell hozzá a „Megjelenítés más alkalmazások felett” engedély.
 - `letterSpacing`-es, kipontozott feliratokat az Android levághat. Szűk helyen `ellipsize = null` és egy kis ráhagyás kell.
 
-## Súlyzós modul (0.6-ban elkészült) és központi adatbázis (még nincs elkezdve)
-- Állapot 2026-10-29: a súlyzós modul első változata kész (lásd fent). Pulzuspántos (Keytel) kalória még nincs, mert a pánt nincs bekötve; addig MET-becslés. A központi adatbázis / ULC-szinkron későbbre halasztva, a profilok az ULC-ben is külön edzésprofilok lesznek (nem az ULC-felhasználókhoz kötve).
+## Súlyzós modul (0.6-ban elkészült)
+- Állapot 2026-10-29: a súlyzós modul első változata kész (lásd fent). Pulzuspántos (Keytel) kalória még nincs, mert a pánt nincs bekötve; addig MET-becslés. A ULC-szinkron elkészült, lásd lent.
 - **Második sport: súlyzós edzés.** A felhasználó eszközei: fekvenyomó pad, Scott-pad, tárcsás lehúzó, kézi súlyzók.
   - Alapadatok: **gépek** és **gyakorlatok** névvel és képpel, menüből bővíthetők. Kép: alapból a wger nyílt adatbázis rajza (CC-BY-SA, szerzőt fel kell tüntetni a Névjegyben), lecserélhető saját képre.
   - **Edzésterv:** betűjeles napok (A, B, C…). Naponként gyakorlatok, gyakorlatonként sorozatok egyenként (ismétlés + súly, eltérhetnek, pl. 1×8×15 kg, aztán 3×8×40 kg). Lehet kész programból indulni, utána szerkeszthető.
   - **Edzés közben:** sorozatonként pipa, vagy a ténylegesen elvégzett ismétlés/súly beállítása. Pihenő-visszaszámlálás hangjelzéssel. Ha minden sorozat teljesült, felajánl súlyemelést a következő alkalomra.
   - **Kalória:** pánttal pulzusból (Keytel), pánt nélkül is legyen becslés (pl. MET × testsúly × idő; jelölni, hogy becslés).
   - Közös napló a két sportnak. Később jöhet kerékpározás modul is.
+## Szinkron a ULC-vel (2026-10-29, 0.8.24-től)
+- **Döntések:** teljes, két irányú szinkron (telefon és tablet közös profilokkal, edzéstervvel, saját gyakorlatokkal/gépekkel, naplóval); csak otthon, helyi hálózaton (nincs VPN); a ULC csak megjelenít (nincs webes tervszerkesztés); nincs súlynapló-kapcsolat. Az edzésprofilok a ULC-ben külön élnek, nem ULC-felhasználókhoz kötve.
+- **App:** `Sync.kt`. Felküldi az `updated_at > Prefs.syncPushedAt` sorokat (a folyamatban lévő edzés és sorozatai nem mennek), lehozza a `rev > Prefs.syncRev` sorokat. Hivatkozások a szerver felé uuid-ként (`profile_id` → `profile_uuid` stb.). Ütközés: későbbi `updated_at` nyer. Saját képek (`file:kepek/…`) base64-ben fel, hiányzók `GET /api/edzes/kep/<név>`-vel le.
+- **Összefésülés (álnevek):** a szerver az ismeretlen uuid-jú sort természetes kulcs szerint egy meglévőbe olvasztja (profil: név + születési év; nap: profil + betű; tétel: nap + gyakorlat + pozíció; katalógus: seed_key), és visszaküldi a régi → új uuid párt; az app átnevezi, vagy ha az új már megvan, átirányítja a hivatkozásokat és törli a régit.
+- **Beépített katalógus:** rögzített uuid (`seedUuid`: `seed-eq-<kulcs>`, `seed-ex-<kulcs>`; DB v6 migráció), hogy eszközönként ne duplázódjon.
+- **Mikor:** az app indításakor (ProfileActivity), edzés mentése után (elliptikus, kerékpár, súlyzós), és a Beállításokból kilépve; kézzel: BEÁLLÍTÁSOK → Szinkron. Csendben kihagyja, ha a ULC nem érhető el.
+- **Beállítás:** ULC címe (alap `http://192.168.1.78:8091`) és eszközkulcs. A kulcsot a ULC **Edzés** oldalán (admin) lehet készíteni és visszavonni; csak létrehozáskor látszik.
+- **ULC oldal:** `webapp/src/lib/training.js`, `routes/edzes.js`, `views/edzes.ejs`, `views/edzes-reszletek.ejs` (Ultimate Life Control projekt). Táblák: `edzes_*`, `edzes_meta` (rev), `edzes_devices`. Képek: `data/EdzesKepek`.
+- **Emulátoros teszt:** az emulátor nem éri el a helyi hálózatot, ezért `node C:\Android\proxy.js` (127.0.0.1:8091 → NAS) és `adb reverse tcp:8091 tcp:8091`, az appban a cím `http://127.0.0.1:8091`. `C:\Android\setsync.ps1` beállítja az emulátort (kulcs a `C:\Android\Tmp\token.txt`-ből). Teszt után az éles ULC-ből töröld a tesztadatot és a kulcsot.
+
+## Előzmény: a központi adatbázis eredeti terve
 - **Központi adatbázis:** több eszköz (tablet + Android telefonok), akár házon kívül is.
   - A felhasználónak van egy saját, webes felületű programja (**ULC**, MySQL-lel) a desktop PC-n. Az edzésadatok oda kerüljenek, a webes felületen nagyjából minden látszódjon és szerkeszthető legyen. Hogy ez min fut, és hol van a MySQL (mini PC vagy NAS), azt még ki kell deríteni az ULC-ből.
   - Terv: az app ne közvetlenül a MySQL-hez kapcsolódjon, hanem egy **API**-hoz az ULC-ben (ugyanazon a nyelven, mint az ULC). Az app **offline-first** marad: helyi SQLite, és szinkronizál, ha eléri a szervert. Házon kívül később VPN-nel (pl. Tailscale), portnyitás nélkül.

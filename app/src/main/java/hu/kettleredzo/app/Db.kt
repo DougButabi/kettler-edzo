@@ -74,7 +74,7 @@ data class LiftSummary(val doneSets: Int, val totalSets: Int, val volumeKg: Doub
 // Helyi adatbázis: profilok, edzésnapló és a súlyzós modul adatai.
 // Szinkronhoz minden táblában: uuid (eszközök között egyedi azonosító), updated_at
 // (utolsó módosítás, ms) és deleted (törlés csak megjelöléssel, hogy a többi eszköz is értesüljön).
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "kettler.db", null, 5) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "kettler.db", null, 6) {
 
     override fun onConfigure(db: SQLiteDatabase) {
         db.setForeignKeyConstraintsEnabled(true)
@@ -105,7 +105,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
                 max_hr INTEGER)""",
         )
         db.execSQL("CREATE INDEX workouts_profile ON workouts(profile_id, started_at)")
-        onUpgrade(db, 1, 5)
+        onUpgrade(db, 1, 6)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -200,6 +200,11 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
                     points TEXT NOT NULL,
                     uuid TEXT NOT NULL UNIQUE, updated_at INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0)""",
             )
+        }
+        // 6. verzió: a beépített katalógus azonosítója rögzített (seedUuid), hogy a szinkron ne duplázza
+        if (oldVersion < 6) {
+            db.execSQL("UPDATE equipment SET uuid = 'seed-eq-' || seed_key WHERE seed_key IS NOT NULL")
+            db.execSQL("UPDATE exercises SET uuid = 'seed-ex-' || seed_key WHERE seed_key IS NOT NULL")
         }
     }
 
@@ -687,6 +692,9 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
 }
 
 fun newUuid(): String = UUID.randomUUID().toString().replace("-", "")
+
+// A beépített gépek és gyakorlatok minden eszközön ugyanazt az azonosítót kapják, így szinkronkor nem duplázódnak.
+fun seedUuid(kind: String, key: String) = "seed-$kind-$key"
 
 // Az utolsó `days` nap kezdőidőpontjai, plusz a holnap kezdete a lista végén (days + 1 elem).
 fun dayStarts(days: Int): LongArray {

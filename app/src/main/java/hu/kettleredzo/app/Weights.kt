@@ -177,7 +177,7 @@ object Catalog {
                 put("name", name)
                 put("image", "res:$image")
                 put("seed_key", key)
-                put("uuid", newUuid())
+                put("uuid", seedUuid("eq", key))
                 put("updated_at", now)
             })
         }
@@ -187,7 +187,7 @@ object Catalog {
                 put("equipment_id", equipmentIds.getValue(e.equipment))
                 put("image", e.image?.let { "res:$it" })
                 put("seed_key", e.key)
-                put("uuid", newUuid())
+                put("uuid", seedUuid("ex", e.key))
                 put("updated_at", now)
             })
         }

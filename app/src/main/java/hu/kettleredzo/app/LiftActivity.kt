@@ -437,6 +437,7 @@ class LiftActivity : KettlerActivity() {
         )
         raise.filterValues { it }.keys.forEach { db.raisePlanItem(it) }
         ui.toast("Edzés elmentve a naplóba.")
+        Sync.runAsync(this)
         finish()
     }
 

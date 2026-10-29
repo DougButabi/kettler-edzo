@@ -235,6 +235,7 @@ class RideActivity : KettlerActivity() {
                 s.pointsJson(),
             )
             ui.toast("Tekerés elmentve a naplóba.")
+            Sync.runAsync(this)
         }
         finish()
     }
