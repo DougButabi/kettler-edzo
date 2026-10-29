@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Wifi-zárolás: edzés közben ne aludjon el a wifi (ESP-kapcsolat) -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Az ESP32 sima http-n beszél, ezért kell a titkosítatlan forgalom. -->
     <application

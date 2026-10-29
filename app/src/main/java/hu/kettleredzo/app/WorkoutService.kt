@@ -10,6 +10,7 @@ import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -28,6 +29,7 @@ class WorkoutService : Service() {
     private var client: EspClient? = null
     private var overlay: TextView? = null
     private var lastTick = 0L
+    private var wifiLock: WifiManager.WifiLock? = null
 
     private val tick = object : Runnable {
         override fun run() {
@@ -75,6 +77,7 @@ class WorkoutService : Service() {
     override fun onCreate() {
         super.onCreate()
         goForeground()
+        holdWifi()
         connect()
         lastTick = SystemClock.elapsedRealtime()
         handler.post(tick)
@@ -91,8 +94,22 @@ class WorkoutService : Service() {
         client?.stop()
         client = null
         removeOverlay()
+        wifiLock?.let { if (it.isHeld) it.release() }
+        wifiLock = null
         KettlerState.onDisconnected(null)
         super.onDestroy()
+    }
+
+    // A tablet wifije energiatakarékosságból 10-20 mp-re elalszik; ilyenkor az ESP bontja a kapcsolatot
+    // („stuck EventSource”). A zárolás ébren tartja, amíg a szolgáltatás fut.
+    @Suppress("DEPRECATION")
+    private fun holdWifi() {
+        val wm = applicationContext.getSystemService(WifiManager::class.java) ?: return
+        val mode = if (Build.VERSION.SDK_INT >= 29) WifiManager.WIFI_MODE_FULL_LOW_LATENCY else WifiManager.WIFI_MODE_FULL_HIGH_PERF
+        wifiLock = wm.createWifiLock(mode, "kettler:esp").apply {
+            setReferenceCounted(false)
+            acquire()
+        }
     }
 
     private fun connect() {
