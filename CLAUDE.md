@@ -1,0 +1,60 @@
+# Kettler edzőapp
+
+Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig átlátszó overlay-sáv más appok (pl. Kodi) fölött, profilok, edzésnapló, edzésmódok és programok. Következő nagy lépés: súlyzós edzés modul és központi adatbázis (lásd lent).
+
+## Kommunikáció a felhasználóval
+- Magyarul, lazán, haverként, helyes helyesírással. Röviden, lényegre törően.
+- Ha valamiben nem vagy biztos, mondd ki. Soha ne találj ki semmit (pl. ellenállás → watt nincs, kalória pánt nélkül csak becslés).
+- A felhasználó nem Android-fejlesztő. ESPHome-ot, Home Assistantot ismer. A lépéseket kezdőnek is követhetően írd le.
+- **Munkamód:** gyakran sorolja a változtatáskéréseket. Ilyenkor csak írd fel és erősítsd meg őket számozva; megvalósítani csak akkor kezdd, ha szól („kezd el”, „csináld”).
+- A felugró ablakok helyett teljes képernyős, az app stílusában tervezett oldalakat szeret (bal oldalt cím/menü, jobb oldalt tartalom).
+
+## Hardver
+- Tréner: Kettler Vito XL (konzol ST2510-8 / ST2550-8, -9 / ST2551-8). Az ellenállás kézi fékerő-állítóval megy, a konzol nem ismeri → watt nem számolható.
+- Kézikönyv: 60 fordulat/perc = 9,5 km/h → 1 fordulat = 2,639 m. Energia: 1 km = 352 kJ (közepes szint). Max. pulzus = 220 − életkor. Kezdő program: lásd `Training.kt`.
+- Sebességérzékelő: a konzol 2 pólusú reed-csatlakozója, párhuzamosan az ESP32 GPIO27-re kötve (belső felhúzás). **10 impulzus / fordulat** (kalibrálva a konzol RPM-jéhez).
+- ESP32: MH-ET LIVE MiniKit, ESPHome, a konfiguráció: `esphome/kettlercontrol.yaml` (a felhasználó az ESPHome Builderben szerkeszti, WiFi-n tölti fel).
+- Pulzuspánt: Magene H64 (BLE 0x180D/0x2A37). Terv: az ESP32 olvassa (ESPHome `ble_client`), az app nem használ Bluetootht. Még nincs bekötve.
+- Tablet: Android 11, fekvő helyzetben a trénerre szerelve, töltőn. Kodi fut rajta (a Kodi saját gombjai az Android navigációs sáv alá esnek, ezt a felhasználó elengedte).
+
+## Adatkapcsolat az ESP32-vel
+- ESPHome `web_server` (version 3), SSE: `http://<ip>/events`.
+- Az eseményazonosítók a szenzorok nevéből jönnek (UTF-8): `sensor/Fordulatszám`, `sensor/Sebesség`, `sensor/Táv` → **a szenzorokat nem szabad átnevezni**. A szám a `value` mezőben van.
+- A táv az ESP összesített értékéből jön, az app az edzés indításakor eltárolja és ahhoz képest számol (ESP-újraindulást is kezel).
+- Az app a címet a Beállítások → Kapcsolat oldalon kéri („Külső eszköz IP-címe”). A `.local` név Android 11-en valószínűleg nem oldódik fel, ezért IP kell.
+
+## Fordítás és kiadás
+- Nincs helyi Android SDK. A fordítás GitHub Actionsben fut (`.github/workflows/apk.yml`) minden `main`-re pusholáskor.
+- Repo: `DougButabi/kettler-edzo` (public). A kész APK állandó linkje (a felhasználó a tableten innen telepít):
+  `https://github.com/DougButabi/kettler-edzo/releases/download/legujabb/kettler-edzo.apk`
+- Aláírás: fix kulcs a `keystore/kettler.jks`-ben (az első Actions-futás hozta létre). Ne cseréld, különben a frissítés nem települ az előző verzióra.
+- `versionCode` = Actions run number, `versionName` = `0.x.<run>` (`app/build.gradle.kts`). Új funkciócsomagnál emeld a középső számot.
+- Munkafolyamat: commit → push a `main`-re (a felhasználó így kapja az APK-t) → `gh run watch <id> --exit-status`, hiba esetén `gh run view <id> --log-failed`, keresd az `e:` sorokat. A git/gh hálózati parancsok a Claude Code sandboxából nem érik el a GitHubot, sandbox nélkül kell futtatni őket.
+- Verziók: AGP 8.7.3, Kotlin 2.1.0, Gradle 8.11.1 (a workflow telepíti), compileSdk/targetSdk 35, minSdk 26. Külső könyvtár nincs (SQLite, HttpURLConnection, org.json, sima View-k).
+
+## Az app felépítése (`app/src/main/java/hu/kettleredzo/app/`)
+- `KettlerActivity` – minden képernyő alapja: rendszersávok elrejtése, és számolja, látszik-e az app (ilyenkor az overlay rejtve marad).
+- `ProfileActivity` (indító, profilválasztó), `ProfileEditActivity`, `MainActivity` (edzésképernyő), `ModeActivity` (edzésmód), `SettingsActivity` (menük: Kapcsolat/Kijelző/Edzés/Felhasználók/Névjegy), `LogActivity` + `BarChartView` (napló).
+- `WorkoutService` – előtérszolgáltatás: SSE-kapcsolat (`EspClient`), 1 mp-es tick (mozgásidő, programszakaszok, cél ellenőrzése, hangok), overlay-sáv.
+- `KettlerState` – közös állapot (csak fő szálról). `Prefs` – SharedPreferences + formázók. `Training.kt` – edzésmódok, kezdő program, `Beeper`. `Db.kt` – SQLite (v2: profiles, workouts; mode/goal/program/completed oszlopokkal).
+- `Ui.kt` – közös stílus: színek, a 904 px magas mintaterv pixeleiben megadott méretek (`ui.px/ipx`), `text`, `label`, `sidePanel`, `field`, `button`, `choice`/`setChosen`, `pill`, `pillButton`. Új képernyőnél ezeket használd.
+- Képek: `res/drawable-nodpi/trener.webp` (nő) és `trener_ferfi.webp` (férfi) a profil neme szerint; adaptív app-ikon a `mipmap-anydpi-v26`-ban.
+
+## Buktatók
+- Kotlin: egy Activity-tulajdonság ne legyen azonos nevű egy View-taggal (pl. `right`, `left`). `View.apply {}` blokkon belül a View tagja nyer → furcsa típushiba.
+- Egy osztálytulajdonság ne legyen azonos nevű egy felső szintű függvénnyel, amit a tulajdonság hív (pl. `modeLabel`).
+- Fekvő módban a billentyűzet teljes képernyős lenne: EditText-eken `compactKeyboard()`, az Activity-n `adjustPan`.
+- Az overlay csak futó edzés közben látszik, és kell hozzá a „Megjelenítés más alkalmazások felett” engedély.
+- `letterSpacing`-es, kipontozott feliratokat az Android levághat. Szűk helyen `ellipsize = null` és egy kis ráhagyás kell.
+
+## Következő: súlyzós modul és központi adatbázis (megbeszélt, még nincs elkezdve)
+- **Második sport: súlyzós edzés.** A felhasználó eszközei: fekvenyomó pad, Scott-pad, tárcsás lehúzó, kézi súlyzók.
+  - Alapadatok: **gépek** és **gyakorlatok** névvel és képpel, menüből bővíthetők. Kép: alapból a wger nyílt adatbázis rajza (CC-BY-SA, szerzőt fel kell tüntetni a Névjegyben), lecserélhető saját képre.
+  - **Edzésterv:** betűjeles napok (A, B, C…). Naponként gyakorlatok, gyakorlatonként sorozatok egyenként (ismétlés + súly, eltérhetnek, pl. 1×8×15 kg, aztán 3×8×40 kg). Lehet kész programból indulni, utána szerkeszthető.
+  - **Edzés közben:** sorozatonként pipa, vagy a ténylegesen elvégzett ismétlés/súly beállítása. Pihenő-visszaszámlálás hangjelzéssel. Ha minden sorozat teljesült, felajánl súlyemelést a következő alkalomra.
+  - **Kalória:** pánttal pulzusból (Keytel), pánt nélkül is legyen becslés (pl. MET × testsúly × idő; jelölni, hogy becslés).
+  - Közös napló a két sportnak. Később jöhet kerékpározás modul is.
+- **Központi adatbázis:** több eszköz (tablet + Android telefonok), akár házon kívül is.
+  - A felhasználónak van egy saját, webes felületű programja (**ULC**, MySQL-lel) a desktop PC-n. Az edzésadatok oda kerüljenek, a webes felületen nagyjából minden látszódjon és szerkeszthető legyen. Hogy ez min fut, és hol van a MySQL (mini PC vagy NAS), azt még ki kell deríteni az ULC-ből.
+  - Terv: az app ne közvetlenül a MySQL-hez kapcsolódjon, hanem egy **API**-hoz az ULC-ben (ugyanazon a nyelven, mint az ULC). Az app **offline-first** marad: helyi SQLite, és szinkronizál, ha eléri a szervert. Házon kívül később VPN-nel (pl. Tailscale), portnyitás nélkül.
+  - A kettler-edzo külön repó/mappa marad az ULC mellett (az Android-fordítás miatt), az ULC egy új modult kap (táblák, API, webes oldalak).
