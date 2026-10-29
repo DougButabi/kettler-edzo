@@ -36,27 +36,32 @@ class WeightsMenuActivity : KettlerActivity() {
         }
         profile = p
         ui = Ui(this)
+        savedInstanceState?.getString(STATE_SECTION)?.let { name -> Section.entries.firstOrNull { it.name == name }?.let { section = it } }
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(BG)
-        }
+        val root = ui.splitRoot()
         val left = ui.sidePanel("Súlyzós\nmenü")
+        val nav = ui.nav(left)
+        if (ui.portrait) nav.addView(ui.navButton("← Vissza") { finish() }, ui.navLp(true))
         for (s in Section.entries) {
-            val b = ui.choice(s.title) { show(s) }
+            val b = ui.navButton(s.title) { show(s) }
             navButtons[s] = b
-            left.addView(b, ui.lp(MATCH_PARENT, ui.ipx(78)).apply { topMargin = ui.ipx(if (s.ordinal == 0) 40 else 14) })
+            nav.addView(b, ui.navLp(s.ordinal == 0 && !ui.portrait))
         }
-        left.addView(View(this), ui.lp(MATCH_PARENT, 0, 1f))
-        left.addView(ui.button("← Vissza", PILL, INK) { finish() }, ui.lp(MATCH_PARENT, ui.ipx(78)))
-        root.addView(left, ui.lp(0, MATCH_PARENT, 0.34f))
+        if (!ui.portrait) {
+            left.addView(View(this), ui.lp(MATCH_PARENT, 0, 1f))
+            left.addView(ui.button("← Vissza", PILL, INK) { finish() }, ui.lp(MATCH_PARENT, ui.ipx(78)))
+        }
+        root.addView(left, ui.sideLp(0.34f))
 
-        pane = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(ui.ipx(40), ui.ipx(120), ui.ipx(60), ui.ipx(60))
-        }
-        root.addView(ScrollView(this).apply { addView(pane) }, ui.lp(0, MATCH_PARENT, 0.66f))
+        pane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        ui.paneLayout(pane)
+        root.addView(ScrollView(this).apply { addView(pane) }, ui.mainLp(0.66f))
         setContentView(root)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(STATE_SECTION, section.name)
     }
 
     override fun onResume() {
@@ -217,4 +222,8 @@ class WeightsMenuActivity : KettlerActivity() {
     }
 
     private fun sectionLp() = ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(40) }
+
+    companion object {
+        private const val STATE_SECTION = "section"
+    }
 }

@@ -48,16 +48,26 @@ class CatalogEditActivity : KettlerActivity() {
             equipment = db.equipment(id)
             image = equipment?.image
         }
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(BG)
+        // Forgatás után (telefon) a választott kép és gép megmarad.
+        savedInstanceState?.let {
+            image = it.getString(STATE_IMAGE)
+            equipmentId = if (it.containsKey(STATE_EQUIPMENT)) it.getLong(STATE_EQUIPMENT) else null
         }
-        root.addView(buildLeft(), ui.lp(0, MATCH_PARENT, 0.38f))
-        root.addView(buildForm(), ui.lp(0, MATCH_PARENT, 0.62f))
+
+        val root = ui.splitRoot()
+        root.addView(buildLeft(), ui.sideLp(0.38f))
+        root.addView(buildForm(), ui.mainLp(0.62f))
         setContentView(root)
+        savedInstanceState?.getString(STATE_NAME)?.let { nameE.setText(it) }
         updatePicture()
         updateEquipment()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(STATE_NAME, nameE.text.toString())
+        outState.putString(STATE_IMAGE, image)
+        equipmentId?.let { outState.putLong(STATE_EQUIPMENT, it) }
     }
 
     private fun buildLeft(): LinearLayout {
@@ -69,26 +79,33 @@ class CatalogEditActivity : KettlerActivity() {
             else -> "Gép"
         }
         val left = ui.sidePanel(title)
+        // Állóban a kép és mellette a két gomb egy sorban fér el.
+        val row = LinearLayout(this).apply {
+            orientation = if (ui.portrait) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            gravity = if (ui.portrait) Gravity.CENTER_VERTICAL else Gravity.START
+        }
+        val size = if (ui.portrait) 220 else 300
         pictureBox = FrameLayout(this)
-        left.addView(pictureBox, ui.lp(ui.ipx(300), ui.ipx(300)).apply { topMargin = ui.ipx(40) })
-        left.addView(ui.button("Kép választása", PILL, INK) { pickImage() }, ui.lp(ui.ipx(300), ui.ipx(78)).apply {
-            topMargin = ui.ipx(20)
-        })
+        row.addView(pictureBox, ui.lp(ui.ipx(size), ui.ipx(size)))
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        buttons.addView(ui.button("Kép választása", PILL, INK) { pickImage() }, ui.lp(ui.ipx(300), ui.ipx(78)))
         val default = if (isExercise) Catalog.defaultExerciseImage(seedKey) else Catalog.defaultEquipmentImage(seedKey)
         if (default != null) {
-            left.addView(ui.button("Eredeti kép", PILL, INK) {
+            buttons.addView(ui.button("Eredeti kép", PILL, INK) {
                 image = default
                 updatePicture()
             }, ui.lp(ui.ipx(300), ui.ipx(78)).apply { topMargin = ui.ipx(14) })
         }
+        row.addView(buttons, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
+            if (ui.portrait) leftMargin = ui.ipx(30) else topMargin = ui.ipx(20)
+        })
+        left.addView(row, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(if (ui.portrait) 20 else 40) })
         return left
     }
 
     private fun buildForm(): ScrollView {
-        val form = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(ui.ipx(20), ui.ipx(120), ui.ipx(60), ui.ipx(60))
-        }
+        val form = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        ui.paneLayout(form)
         val currentName = if (isExercise) exercise?.name else equipment?.name
         nameE = ui.field(currentName ?: "", if (isExercise) "pl. Fekvenyomás" else "pl. Fekvenyomó pad",
             InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES, true)
@@ -138,7 +155,7 @@ class CatalogEditActivity : KettlerActivity() {
 
     private fun updatePicture() {
         pictureBox.removeAllViews()
-        pictureBox.addView(ui.picture(image, nameE.text.toString().ifBlank { "?" }, 300),
+        pictureBox.addView(ui.picture(image, nameE.text.toString().ifBlank { "?" }, if (ui.portrait) 220 else 300),
             FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
     }
 
@@ -214,5 +231,8 @@ class CatalogEditActivity : KettlerActivity() {
         const val KIND_EXERCISE = "exercise"
         const val KIND_EQUIPMENT = "equipment"
         private const val REQ_IMAGE = 1
+        private const val STATE_NAME = "name"
+        private const val STATE_IMAGE = "image"
+        private const val STATE_EQUIPMENT = "equipment"
     }
 }

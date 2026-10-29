@@ -19,7 +19,8 @@ enum class Sex(val code: String) {
 
 enum class Sport(val code: String, val title: String) {
     ELLIPTICAL("elliptical", "Elliptikus tréner"),
-    WEIGHTS("weights", "Súlyzós edzés");
+    WEIGHTS("weights", "Súlyzós edzés"),
+    BIKE("bike", "Kerékpár");
 
     companion object {
         fun of(code: String?) = entries.firstOrNull { it.code == code } ?: ELLIPTICAL
@@ -55,11 +56,13 @@ data class Workout(
     val completed: Boolean = false, // elérte-e a célt / végigment-e a programon / minden sorozat megvolt
     val sport: Sport = Sport.ELLIPTICAL,
     val title: String? = null, // súlyzós edzésnél a nap betűje, pl. "A"
+    val elevGain: Double? = null, // kerékpárnál a megtett szintemelkedés (m)
 ) {
     val label: String
         get() = when (sport) {
             Sport.ELLIPTICAL -> modeLabel(mode, goal, programWeek)
             Sport.WEIGHTS -> "Súlyzós" + (title?.let { " · $it nap" } ?: "")
+            Sport.BIKE -> "Kerékpár · " + modeLabel(mode, goal, null)
         } + if (completed) " ✓" else ""
 }
 
@@ -71,7 +74,7 @@ data class LiftSummary(val doneSets: Int, val totalSets: Int, val volumeKg: Doub
 // Helyi adatbázis: profilok, edzésnapló és a súlyzós modul adatai.
 // Szinkronhoz minden táblában: uuid (eszközök között egyedi azonosító), updated_at
 // (utolsó módosítás, ms) és deleted (törlés csak megjelöléssel, hogy a többi eszköz is értesüljön).
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "kettler.db", null, 4) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "kettler.db", null, 5) {
 
     override fun onConfigure(db: SQLiteDatabase) {
         db.setForeignKeyConstraintsEnabled(true)
@@ -102,7 +105,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
                 max_hr INTEGER)""",
         )
         db.execSQL("CREATE INDEX workouts_profile ON workouts(profile_id, started_at)")
-        onUpgrade(db, 1, 4)
+        onUpgrade(db, 1, 5)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -187,6 +190,17 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
         }
         // 4. verzió: egységes gyakorlatrajzok (a hiányzók pótlása, két gyakorlat új neve)
         if (oldVersion < 4) Catalog.upgradeTo4(db)
+        // 5. verzió: kerékpár – szintemelkedés és a GPS-útvonal ([[lat, lon, magasság, idő], …] JSON-ban)
+        if (oldVersion < 5) {
+            db.execSQL("ALTER TABLE workouts ADD COLUMN elev_gain REAL")
+            db.execSQL(
+                """CREATE TABLE tracks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workout_id INTEGER NOT NULL REFERENCES workouts(id) ON DELETE CASCADE,
+                    points TEXT NOT NULL,
+                    uuid TEXT NOT NULL UNIQUE, updated_at INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0)""",
+            )
+        }
     }
 
     // ---- Profilok ----
@@ -252,6 +266,20 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
         put("completed", if (w.completed) 1 else 0)
         put("sport", w.sport.code)
         put("title", w.title)
+        w.elevGain?.let { put("elev_gain", it) }
+    }
+
+    // Kerékpáros edzés mentése az útvonalával együtt
+    fun addRide(w: Workout, points: String): Long {
+        var id = 0L
+        writableDatabase.transaction {
+            id = addWorkout(w)
+            save("tracks", 0, ContentValues().apply {
+                put("workout_id", id)
+                put("points", points)
+            })
+        }
+        return id
     }
 
     fun workout(id: Long): Workout? =
@@ -269,29 +297,32 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
             c.getInt(0)
         }
 
-    fun workouts(profileId: Long, since: Long = 0, limit: Int = 500): List<Workout> =
+    fun workouts(profileId: Long, since: Long = 0, limit: Int = 500, sport: Sport? = null): List<Workout> =
         readableDatabase.rawQuery(
-            "SELECT * FROM workouts WHERE profile_id = ? AND started_at >= ? AND $DONE ORDER BY started_at DESC LIMIT $limit",
-            arrayOf(profileId.toString(), since.toString()),
+            "SELECT * FROM workouts WHERE profile_id = ? AND started_at >= ? AND $DONE AND sport LIKE ? ORDER BY started_at DESC LIMIT $limit",
+            arrayOf(profileId.toString(), since.toString(), sport?.code ?: "%"),
         ).use { c ->
             generateSequence { if (c.moveToNext()) c.toWorkout() else null }.toList()
         }
 
     fun deleteWorkout(id: Long) {
         writableDatabase.transaction {
-            writableDatabase.execSQL(
-                "UPDATE workout_sets SET deleted = 1, updated_at = ${System.currentTimeMillis()} WHERE workout_id = ?",
-                arrayOf(id.toString()),
-            )
+            for (t in listOf("workout_sets", "tracks")) {
+                writableDatabase.execSQL(
+                    "UPDATE $t SET deleted = 1, updated_at = ${System.currentTimeMillis()} WHERE workout_id = ?",
+                    arrayOf(id.toString()),
+                )
+            }
             softDelete("workouts", id)
         }
     }
 
-    fun totals(profileId: Long, since: Long = 0): Totals =
+    // Összesítő; ha a sport meg van adva, csak arra a sportra
+    fun totals(profileId: Long, since: Long = 0, sport: Sport? = null): Totals =
         readableDatabase.rawQuery(
             """SELECT COUNT(*), COALESCE(SUM(moving_ms), 0), COALESCE(SUM(distance_km), 0), COALESCE(SUM(kcal), 0)
-               FROM workouts WHERE profile_id = ? AND started_at >= ? AND $DONE""",
-            arrayOf(profileId.toString(), since.toString()),
+               FROM workouts WHERE profile_id = ? AND started_at >= ? AND $DONE AND sport LIKE ?""",
+            arrayOf(profileId.toString(), since.toString(), sport?.code ?: "%"),
         ).use { c ->
             c.moveToFirst()
             Totals(c.getInt(0), c.getLong(1), c.getDouble(2), c.getDouble(3))
@@ -612,6 +643,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
         completed = getInt(getColumnIndexOrThrow("completed")) == 1,
         sport = Sport.of(getString(getColumnIndexOrThrow("sport"))),
         title = getString(getColumnIndexOrThrow("title")),
+        elevGain = getColumnIndexOrThrow("elev_gain").let { if (isNull(it)) null else getDouble(it) },
     )
 
     private fun Cursor.toEquipment() = Equipment(

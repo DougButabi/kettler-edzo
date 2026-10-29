@@ -10,6 +10,7 @@ import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.WindowManager
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -68,8 +69,20 @@ class LiftActivity : KettlerActivity() {
         Beeper.enabled = Prefs.beeps(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(buildUi())
+        // Forgatás után (telefon) ugyanott folytatjuk, a pihenő is fut tovább.
+        savedInstanceState?.let {
+            current = it.getInt(STATE_CURRENT, current).coerceIn(0, max(0, itemCount - 1))
+            restEndAt = it.getLong(STATE_REST_END, 0L)
+            if (restEndAt > System.currentTimeMillis()) restBox.visibility = View.VISIBLE else restEndAt = 0L
+        }
         renderNav()
         renderExercise()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(STATE_CURRENT, current)
+        outState.putLong(STATE_REST_END, restEndAt)
     }
 
     override fun onResume() {
@@ -84,40 +97,47 @@ class LiftActivity : KettlerActivity() {
 
     // ---- Felület ----
 
+    // Fekvőben bal oldalt a gyakorlatlista, jobb oldalt a sorozatok; állóban (telefon) a lista
+    // egy vízszintesen görgethető sor a fejléc alatt.
     private fun buildUi(): View {
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(BG)
-        }
+        val portrait = ui.portrait
+        val root = ui.splitRoot()
 
         val left = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(ui.ipx(50), ui.ipx(40), ui.ipx(24), ui.ipx(40))
+            if (portrait) setPadding(ui.ipx(35), ui.ipx(24), ui.ipx(35), ui.ipx(6)) else setPadding(ui.ipx(50), ui.ipx(40), ui.ipx(24), ui.ipx(40))
         }
         left.addView(ui.text("KETTLER", 32, INK, ui.light, 0.35f))
         left.addView(ui.text("${workout.title ?: ""} nap · ${profile.name}", 40, INK, ui.bold), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
-            topMargin = ui.ipx(24)
+            topMargin = ui.ipx(if (portrait) 14 else 24)
         })
         val stats = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.BOTTOM
+            gravity = if (portrait) Gravity.CENTER_VERTICAL else Gravity.BOTTOM
         }
         elapsedV = ui.text("0:00", 64, INK, ui.bold)
         stats.addView(elapsedV)
         kcalV = ui.text("", 22, MUTED, ui.regular)
-        stats.addView(kcalV, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(20) })
+        stats.addView(kcalV, ui.lp(if (portrait) 0 else WRAP_CONTENT, WRAP_CONTENT, if (portrait) 1f else 0f).apply { leftMargin = ui.ipx(20) })
         left.addView(stats, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(12) })
+        val finish = ui.button("Befejezés", BAR, Color.WHITE) { showSummary() }
 
-        nav = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        left.addView(ScrollView(this).apply { addView(nav) }, ui.lp(MATCH_PARENT, 0, 1f).apply { topMargin = ui.ipx(24) })
-        left.addView(ui.button("Befejezés", BAR, Color.WHITE) { showSummary() }, ui.lp(MATCH_PARENT, ui.ipx(85)).apply {
-            topMargin = ui.ipx(20)
-        })
-        root.addView(left, ui.lp(0, MATCH_PARENT, 0.33f))
+        nav = LinearLayout(this).apply { orientation = if (portrait) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
+        if (portrait) {
+            stats.addView(finish, ui.lp(ui.ipx(240), ui.ipx(78)))
+            left.addView(HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                addView(nav)
+            }, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(18) })
+        } else {
+            left.addView(ScrollView(this).apply { addView(nav) }, ui.lp(MATCH_PARENT, 0, 1f).apply { topMargin = ui.ipx(24) })
+            left.addView(finish, ui.lp(MATCH_PARENT, ui.ipx(85)).apply { topMargin = ui.ipx(20) })
+        }
+        root.addView(left, ui.sideLp(0.33f))
 
         val right = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(ui.ipx(30), ui.ipx(40), ui.ipx(50), ui.ipx(30))
+            if (portrait) setPadding(ui.ipx(35), ui.ipx(16), ui.ipx(35), ui.ipx(20)) else setPadding(ui.ipx(30), ui.ipx(40), ui.ipx(50), ui.ipx(30))
         }
         // Pihenő-sáv: csak visszaszámlálás közben látszik
         restBox = LinearLayout(this).apply {
@@ -145,7 +165,7 @@ class LiftActivity : KettlerActivity() {
         pane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll = ScrollView(this).apply { addView(pane) }
         right.addView(scroll, ui.lp(MATCH_PARENT, 0, 1f))
-        root.addView(right, ui.lp(0, MATCH_PARENT, 0.67f))
+        root.addView(right, ui.mainLp(0.67f))
         return root
     }
 
@@ -165,7 +185,12 @@ class LiftActivity : KettlerActivity() {
                 setPadding(ui.ipx(24), 0, ui.ipx(16), 0)
             }
             ui.setChosen(b, i == current)
-            nav.addView(b, ui.lp(MATCH_PARENT, ui.ipx(70)).apply { if (i > 0) topMargin = ui.ipx(10) })
+            val lp = if (ui.portrait) {
+                ui.lp(WRAP_CONTENT, ui.ipx(70)).apply { if (i > 0) leftMargin = ui.ipx(10) }
+            } else {
+                ui.lp(MATCH_PARENT, ui.ipx(70)).apply { if (i > 0) topMargin = ui.ipx(10) }
+            }
+            nav.addView(b, lp)
         }
     }
 
@@ -179,7 +204,7 @@ class LiftActivity : KettlerActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        head.addView(ui.picture(ex?.image, ex?.name ?: "?", 220))
+        head.addView(ui.picture(ex?.image, ex?.name ?: "?", if (ui.portrait) 180 else 220))
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(ui.text("${current + 1}/$itemCount. gyakorlat", 20, MUTED, ui.medium))
         col.addView(ui.text(ex?.name ?: "?", 44, INK, ui.bold).apply { maxLines = 2 },
@@ -208,26 +233,28 @@ class LiftActivity : KettlerActivity() {
             background = ui.rounded(if (set.done) GREEN else CARD, 24)
             setPadding(ui.ipx(24), ui.ipx(12), ui.ipx(14), ui.ipx(12))
         }
+        // Állóban (telefon) keskenyebb mezők és rövidebb pipa
+        val compact = ui.portrait
         row.addView(ui.text("${set.setPos + 1}.", 34, INK, ui.bold), ui.lp(ui.ipx(60), WRAP_CONTENT))
-        row.addView(ui.stepper(value("${set.reps} ism", 130), { update(set.copy(reps = max(0, set.reps - 1))) }, {
+        row.addView(ui.stepper(value("${set.reps} ism", if (compact) 100 else 130), { update(set.copy(reps = max(0, set.reps - 1))) }, {
             update(set.copy(reps = set.reps + 1))
         }))
         row.addView(ui.text("×", 30, MUTED, ui.regular), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
             leftMargin = ui.ipx(14)
             rightMargin = ui.ipx(14)
         })
-        row.addView(ui.stepper(value("${kgText(set.kg)} kg", 140), {
+        row.addView(ui.stepper(value("${kgText(set.kg)} kg", if (compact) 110 else 140), {
             update(set.copy(kg = max(0.0, set.kg - Lifting.kgStep(set.kg - 0.01))))
         }, {
             update(set.copy(kg = set.kg + Lifting.kgStep(set.kg)))
         }))
         row.addView(View(this), ui.lp(0, 1, 1f))
-        val check = ui.text(if (set.done) "✓ Kész" else "✓", 34, if (set.done) Color.WHITE else INK, ui.bold).apply {
+        val check = ui.text(if (set.done && !compact) "✓ Kész" else "✓", 34, if (set.done) Color.WHITE else INK, ui.bold).apply {
             gravity = Gravity.CENTER
             background = ui.rounded(if (set.done) BAR else Color.WHITE, 40)
             setOnClickListener { toggle(set) }
         }
-        row.addView(check, ui.lp(ui.ipx(170), ui.ipx(80)))
+        row.addView(check, ui.lp(ui.ipx(if (compact) 110 else 170), ui.ipx(80)))
         return row
     }
 
@@ -404,5 +431,7 @@ class LiftActivity : KettlerActivity() {
 
     companion object {
         const val EXTRA_WORKOUT_ID = "workoutId"
+        private const val STATE_CURRENT = "current"
+        private const val STATE_REST_END = "restEnd"
     }
 }

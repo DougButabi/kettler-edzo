@@ -10,6 +10,8 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlin.math.max
 
 // Az edzésterv egy napjának szerkesztése: gyakorlatok sorrendje, gyakorlatonként a pihenőidő
@@ -35,41 +37,65 @@ class PlanDayActivity : KettlerActivity() {
         }
         day = d
         ui = Ui(this)
-        for (pi in d.items) {
-            val ex = db.exercise(pi.exerciseId) ?: continue
-            items += Item(pi.id, ex, pi.restSec, pi.sets.toMutableList())
+        // Forgatás után (telefon) a még el nem mentett szerkesztés folytatódik.
+        val saved = savedInstanceState?.getString(STATE_ITEMS)
+        if (saved != null) {
+            val a = JSONArray(saved)
+            for (i in 0 until a.length()) {
+                val o = a.getJSONObject(i)
+                val ex = db.exercise(o.getLong("exercise")) ?: continue
+                items += Item(o.getLong("id"), ex, o.getInt("rest"), PlannedSet.parse(o.getString("sets")).toMutableList())
+            }
+        } else {
+            for (pi in d.items) {
+                val ex = db.exercise(pi.exerciseId) ?: continue
+                items += Item(pi.id, ex, pi.restSec, pi.sets.toMutableList())
+            }
         }
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(BG)
-        }
+        val root = ui.splitRoot()
         val left = ui.sidePanel("${day.letter} nap")
-        left.addView(ui.note("Gyakorlatonként a sorozatok egyenként állíthatók, pl. 1 × 8 × 15 kg bemelegítés, aztán 3 × 8 × 40 kg."),
-            ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
-        left.addView(ui.button("+ Gyakorlat", BAR, Color.WHITE) { showPicker() }, ui.lp(MATCH_PARENT, ui.ipx(78)).apply {
-            topMargin = ui.ipx(30)
-        })
-        left.addView(ui.button("Nap törlése", DANGER, Color.WHITE) { confirmDelete() }, ui.lp(MATCH_PARENT, ui.ipx(78)).apply {
-            topMargin = ui.ipx(14)
-        })
-        left.addView(View(this), ui.lp(MATCH_PARENT, 0, 1f))
-        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        buttons.addView(ui.button("Mégse", PILL, INK) { finish() }, ui.lp(0, ui.ipx(78), 1f))
-        buttons.addView(ui.button("Mentés", BAR, Color.WHITE) { save() }, ui.lp(0, ui.ipx(78), 1f).apply {
-            leftMargin = ui.ipx(16)
-        })
-        left.addView(buttons, ui.lp(MATCH_PARENT, WRAP_CONTENT))
-        root.addView(left, ui.lp(0, MATCH_PARENT, 0.34f))
-
-        pane = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(ui.ipx(40), ui.ipx(60), ui.ipx(60), ui.ipx(60))
+        if (!ui.portrait) {
+            left.addView(ui.note("Gyakorlatonként a sorozatok egyenként állíthatók, pl. 1 × 8 × 15 kg bemelegítés, aztán 3 × 8 × 40 kg."),
+                ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
         }
+        val add = ui.button("+ Gyakorlat", BAR, Color.WHITE) { showPicker() }
+        val delete = ui.button("Nap törlése", DANGER, Color.WHITE) { confirmDelete() }
+        val cancel = ui.button("Mégse", PILL, INK) { finish() }
+        val ok = ui.button("Mentés", BAR, Color.WHITE) { save() }
+        if (ui.portrait) {
+            // Állóban két sor gomb a cím alatt
+            for ((a, b) in listOf(add to delete, cancel to ok)) {
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                row.addView(a, ui.lp(0, ui.ipx(78), 1f))
+                row.addView(b, ui.lp(0, ui.ipx(78), 1f).apply { leftMargin = ui.ipx(16) })
+                left.addView(row, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(16) })
+            }
+        } else {
+            left.addView(add, ui.lp(MATCH_PARENT, ui.ipx(78)).apply { topMargin = ui.ipx(30) })
+            left.addView(delete, ui.lp(MATCH_PARENT, ui.ipx(78)).apply { topMargin = ui.ipx(14) })
+            left.addView(View(this), ui.lp(MATCH_PARENT, 0, 1f))
+            val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            buttons.addView(cancel, ui.lp(0, ui.ipx(78), 1f))
+            buttons.addView(ok, ui.lp(0, ui.ipx(78), 1f).apply { leftMargin = ui.ipx(16) })
+            left.addView(buttons, ui.lp(MATCH_PARENT, WRAP_CONTENT))
+        }
+        root.addView(left, ui.sideLp(0.34f))
+
+        pane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        ui.paneLayout(pane, top = 60)
         scroll = ScrollView(this).apply { addView(pane) }
-        root.addView(scroll, ui.lp(0, MATCH_PARENT, 0.66f))
+        root.addView(scroll, ui.mainLp(0.66f))
         setContentView(root)
         render()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        val a = JSONArray(items.map {
+            JSONObject().put("id", it.id).put("exercise", it.exercise.id).put("rest", it.restSec).put("sets", PlannedSet.toJson(it.sets))
+        })
+        outState.putString(STATE_ITEMS, a.toString())
     }
 
     // ---- Lista ----
@@ -133,8 +159,11 @@ class PlanDayActivity : KettlerActivity() {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
             }
-            row.addView(ui.text("${j + 1}. sorozat", 24, MUTED, ui.medium), ui.lp(ui.ipx(150), WRAP_CONTENT))
-            row.addView(ui.stepper(value("${s.reps} ism", 130), {
+            // Állóban (telefon) keskenyebb sor: csak a sorszám, kisebb mezők
+            val compact = ui.portrait
+            row.addView(ui.text(if (compact) "${j + 1}." else "${j + 1}. sorozat", 24, MUTED, ui.medium),
+                ui.lp(ui.ipx(if (compact) 50 else 150), WRAP_CONTENT))
+            row.addView(ui.stepper(value("${s.reps} ism", if (compact) 110 else 130), {
                 item.sets[j] = s.copy(reps = max(1, s.reps - 1))
                 render()
             }, {
@@ -145,7 +174,7 @@ class PlanDayActivity : KettlerActivity() {
                 leftMargin = ui.ipx(18)
                 rightMargin = ui.ipx(18)
             })
-            row.addView(ui.stepper(value("${kgText(s.kg)} kg", 140), {
+            row.addView(ui.stepper(value("${kgText(s.kg)} kg", if (compact) 120 else 140), {
                 item.sets[j] = s.copy(kg = max(0.0, s.kg - Lifting.kgStep(s.kg - 0.01)))
                 render()
             }, {
@@ -245,5 +274,6 @@ class PlanDayActivity : KettlerActivity() {
 
     companion object {
         const val EXTRA_DAY_ID = "dayId"
+        private const val STATE_ITEMS = "items"
     }
 }

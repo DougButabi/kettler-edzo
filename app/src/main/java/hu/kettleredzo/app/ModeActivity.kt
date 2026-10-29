@@ -1,6 +1,5 @@
 package hu.kettleredzo.app
 
-import android.app.Activity
 import android.graphics.Color
 import android.os.Bundle
 import android.text.InputType
@@ -13,12 +12,14 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 
-// Edzésmód választása: szabad, táv, kalória, idő vagy a kézikönyv kezdő programja.
+// Edzésmód választása: szabad, táv, kalória, idő, és az elliptikusnál a kézikönyv kezdő programja.
+// EXTRA_SPORT = kerékpár esetén a kerékpáros módot állítja (program nélkül).
 class ModeActivity : KettlerActivity() {
     private lateinit var ui: Ui
     private lateinit var pane: LinearLayout
     private val modeButtons = mutableMapOf<WorkoutMode, TextView>()
 
+    private var bike = false
     private var mode = WorkoutMode.FREE
     private var week = 1
     private var goalField: EditText? = null
@@ -26,35 +27,44 @@ class ModeActivity : KettlerActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        bike = intent.getStringExtra(EXTRA_SPORT) == Sport.BIKE.code
         // Edzés közben nem lehet módot váltani.
-        if (KettlerState.running) {
+        if (if (bike) BikeState.running else KettlerState.running) {
             finish()
             return
         }
         ui = Ui(this)
-        mode = Prefs.mode(this)
+        mode = if (bike) Prefs.bikeMode(this) else Prefs.mode(this)
         week = Prefs.programWeek(this)
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(BG)
+        savedInstanceState?.let {
+            mode = WorkoutMode.of(it.getString(STATE_MODE))
+            week = it.getInt(STATE_WEEK, week)
         }
 
+        val root = ui.splitRoot()
         val left = ui.sidePanel("Edzésmód")
-        for (m in WorkoutMode.entries) {
-            val b = ui.choice(m.title) { select(m) }
+        val nav = ui.nav(left)
+        val modes = if (bike) WorkoutMode.entries.filter { it != WorkoutMode.PROGRAM } else WorkoutMode.entries
+        modes.forEachIndexed { i, m ->
+            val b = ui.navButton(m.title) { select(m) }
             modeButtons[m] = b
-            left.addView(b, ui.lp(MATCH_PARENT, ui.ipx(78)).apply { topMargin = ui.ipx(if (m.ordinal == 0) 40 else 14) })
+            nav.addView(b, ui.navLp(i == 0))
         }
-        root.addView(ScrollView(this).apply { addView(left) }, ui.lp(0, MATCH_PARENT, 0.36f))
+        root.addView(if (ui.portrait) left else ScrollView(this).apply { addView(left) }, ui.sideLp(0.36f))
 
-        pane = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(ui.ipx(40), ui.ipx(120), ui.ipx(60), ui.ipx(60))
-        }
-        root.addView(ScrollView(this).apply { addView(pane) }, ui.lp(0, MATCH_PARENT, 0.64f))
+        pane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        ui.paneLayout(pane)
+        root.addView(ScrollView(this).apply { addView(pane) }, ui.mainLp(0.64f))
         setContentView(root)
         select(mode)
+        savedInstanceState?.getString(STATE_GOAL)?.let { goalField?.setText(it) }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(STATE_MODE, mode.code)
+        outState.putInt(STATE_WEEK, week)
+        goalField?.let { outState.putString(STATE_GOAL, it.text.toString()) }
     }
 
     private fun select(m: WorkoutMode) {
@@ -63,15 +73,21 @@ class ModeActivity : KettlerActivity() {
         pane.removeAllViews()
         goalField = null
         errorV = null
-        when (m) {
-            WorkoutMode.FREE -> buildFree()
-            WorkoutMode.DISTANCE -> buildGoal("CÉL (KM)", listOf(3.0, 5.0, 10.0, 15.0), "km",
+        when {
+            m == WorkoutMode.FREE -> buildFree()
+            bike && m == WorkoutMode.DISTANCE -> buildGoal("CÉL (KM)", listOf(10.0, 20.0, 30.0, 50.0), "km",
+                "Visszaszámol a hátralévő távval. A cél elérésekor hangjelzés, a tekerés megy tovább.", decimal = true)
+            bike && m == WorkoutMode.KCAL -> buildGoal("CÉL (KCAL)", listOf(300.0, 500.0, 1000.0), "kcal",
+                "Ez becslés a sebességből és a testsúlyból. A szél és az emelkedő nincs benne.", decimal = false)
+            bike && m == WorkoutMode.TIME -> buildGoal("CÉL (PERC)", listOf(30.0, 60.0, 90.0, 120.0), "perc",
+                "Az idő csak mozgás közben fogy: megálláskor automatikus szünet.", decimal = false)
+            m == WorkoutMode.DISTANCE -> buildGoal("CÉL (KM)", listOf(3.0, 5.0, 10.0, 15.0), "km",
                 "Visszaszámol a hátralévő távval.", decimal = true)
-            WorkoutMode.KCAL -> buildGoal("CÉL (KCAL)", listOf(300.0, 500.0, 1000.0), "kcal",
+            m == WorkoutMode.KCAL -> buildGoal("CÉL (KCAL)", listOf(300.0, 500.0, 1000.0), "kcal",
                 "Pulzuspánt nélkül ez becslés: a kézikönyv szerint 1 km kb. 84 kcal.", decimal = false)
-            WorkoutMode.TIME -> buildGoal("CÉL (PERC)", listOf(15.0, 30.0, 45.0, 60.0), "perc",
+            m == WorkoutMode.TIME -> buildGoal("CÉL (PERC)", listOf(15.0, 30.0, 45.0, 60.0), "perc",
                 "Az idő csak tekerés közben fogy.", decimal = false)
-            WorkoutMode.PROGRAM -> buildProgram()
+            else -> buildProgram()
         }
         errorV = ui.text("", 22, DANGER, ui.medium)
         pane.addView(errorV, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
@@ -84,20 +100,23 @@ class ModeActivity : KettlerActivity() {
         pane.addView(buttons, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
     }
 
-    private fun note(s: String) = ui.text(s, 22, MUTED, ui.regular).apply {
-        maxLines = 4
-        ellipsize = null
-    }
+    private fun note(s: String) = ui.note(s)
 
     private fun buildFree() {
-        pane.addView(ui.label("SZABAD EDZÉS"))
-        pane.addView(note("Kötetlen edzés, cél nélkül. Az idő csak tekerés közben megy."), ui.fieldLp())
+        pane.addView(ui.label(if (bike) "SZABAD TEKERÉS" else "SZABAD EDZÉS"))
+        val text = if (bike) {
+            "Kötetlen tekerés, cél nélkül. Megálláskor (pl. piros lámpa) az idő magától megáll."
+        } else {
+            "Kötetlen edzés, cél nélkül. Az idő csak tekerés közben megy."
+        }
+        pane.addView(note(text), ui.fieldLp())
     }
 
     private fun buildGoal(title: String, presets: List<Double>, unit: String, hint: String, decimal: Boolean) {
         pane.addView(ui.label(title))
         val type = if (decimal) InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL else InputType.TYPE_CLASS_NUMBER
-        val field = ui.field(goalText(Prefs.goal(this, mode)), "", type, true)
+        val current = if (bike) Prefs.bikeGoal(this, mode) else Prefs.goal(this, mode)
+        val field = ui.field(goalText(current), "", type, true)
         goalField = field
         pane.addView(field, ui.fieldLp())
 
@@ -170,7 +189,7 @@ class ModeActivity : KettlerActivity() {
         if (field != null) {
             val v = field.text.toString().trim().replace(',', '.').toDoubleOrNull()
             val range = when (mode) {
-                WorkoutMode.DISTANCE -> 0.1..200.0
+                WorkoutMode.DISTANCE -> if (bike) 0.5..1000.0 else 0.1..200.0
                 WorkoutMode.KCAL -> 10.0..10_000.0
                 else -> 1.0..600.0
             }
@@ -179,12 +198,24 @@ class ModeActivity : KettlerActivity() {
                 return
             }
             goal = v
-            Prefs.setGoal(this, mode, v)
+            if (bike) Prefs.setBikeGoal(this, mode, v) else Prefs.setGoal(this, mode, v)
         }
-        Prefs.setMode(this, mode)
-        Prefs.setProgramWeek(this, week)
-        KettlerState.configure(mode, goal, Programs.week(week))
-        KettlerState.resetCounters()
+        if (bike) {
+            Prefs.setBikeMode(this, mode)
+            BikeState.configure(mode, goal)
+        } else {
+            Prefs.setMode(this, mode)
+            Prefs.setProgramWeek(this, week)
+            KettlerState.configure(mode, goal, Programs.week(week))
+            KettlerState.resetCounters()
+        }
         finish()
+    }
+
+    companion object {
+        const val EXTRA_SPORT = "sport"
+        private const val STATE_MODE = "mode"
+        private const val STATE_WEEK = "week"
+        private const val STATE_GOAL = "goal"
     }
 }

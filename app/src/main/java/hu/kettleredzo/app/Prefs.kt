@@ -28,6 +28,29 @@ object Prefs {
     fun setGoal(c: Context, mode: WorkoutMode, value: Double) =
         prefs(c).edit().putFloat("goal_" + mode.code, value.toFloat()).apply()
 
+    // Kerékpár: külön megjegyzett mód és célok
+    fun bikeMode(c: Context): WorkoutMode = WorkoutMode.of(prefs(c).getString("bikeMode", null))
+    fun setBikeMode(c: Context, value: WorkoutMode) = prefs(c).edit().putString("bikeMode", value.code).apply()
+
+    fun bikeGoal(c: Context, mode: WorkoutMode): Double {
+        val default = when (mode) {
+            WorkoutMode.DISTANCE -> 20f
+            WorkoutMode.KCAL -> 500f
+            WorkoutMode.TIME -> 60f
+            else -> 0f
+        }
+        return prefs(c).getFloat("bikeGoal_" + mode.code, default).toDouble()
+    }
+    fun setBikeGoal(c: Context, mode: WorkoutMode, value: Double) =
+        prefs(c).edit().putFloat("bikeGoal_" + mode.code, value.toFloat()).apply()
+
+    // A mentett kerékpáros módot betölti a közös állapotba (tekerés közben nem nyúlunk hozzá).
+    fun applyBikeMode(c: Context) {
+        if (BikeState.running) return
+        val m = bikeMode(c)
+        BikeState.configure(m, bikeGoal(c, m))
+    }
+
     fun programWeek(c: Context): Int = prefs(c).getInt("programWeek", 1)
     fun setProgramWeek(c: Context, value: Int) = prefs(c).edit().putInt("programWeek", value).apply()
 

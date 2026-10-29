@@ -43,7 +43,14 @@ class WeightsActivity : KettlerActivity() {
         }
         profile = p
         ui = Ui(this)
+        selectedDayId = savedInstanceState?.getLong(STATE_DAY, -1L) ?: -1L
         setContentView(buildUi())
+    }
+
+    // Forgatáskor (telefonon) a kiválasztott nap megmarad.
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putLong(STATE_DAY, selectedDayId)
     }
 
     override fun onResume() {
@@ -212,52 +219,20 @@ class WeightsActivity : KettlerActivity() {
 
     // ---- Felület felépítése ----
 
-    private fun buildUi(): View {
-        val root = FrameLayout(this)
-        root.addView(ui.photoArea(root, R.drawable.sulyzos, PHOTO_LEFT, PHOTO_RIGHT), FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT).apply {
-            bottomMargin = ui.ipx(BAR_H)
-        })
-        root.addView(buildTopBar(), FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, Gravity.TOP))
-
-        val content = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        content.addView(View(this), ui.lp(0, MATCH_PARENT, 0.525f))
-        content.addView(buildPanel(), ui.lp(0, MATCH_PARENT, 0.475f))
-        root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT).apply {
-            bottomMargin = ui.ipx(BAR_H)
-        })
-
-        root.addView(buildBottomBar(), FrameLayout.LayoutParams(MATCH_PARENT, ui.ipx(BAR_H), Gravity.BOTTOM))
-        return root
-    }
+    private fun buildUi(): View =
+        ui.homeScreen(R.drawable.sulyzos, PHOTO_LEFT, PHOTO_RIGHT, buildTopBar(), buildPanel(), buildBottomBar(), BAR_H)
 
     private fun buildTopBar(): View {
-        val bar = FrameLayout(this).apply { setPadding(ui.ipx(35), ui.ipx(22), ui.ipx(28), 0) }
-
-        val logo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        logo.addView(ui.text("KETTLER", 32, INK, ui.light, 0.35f))
-        logo.addView(ui.text("SÚLYZÓS EDZÉS", 13, MUTED, ui.medium, 0.25f).apply {
-            setPadding(0, ui.ipx(8), 0, 0)
-        })
         // A profil neve nagyban; koppintásra profilváltás
-        nameV = ui.text(profile.name, 46, INK, ui.bold).apply {
-            setPadding(0, ui.ipx(18), 0, ui.ipx(6))
-            setOnClickListener { openProfiles() }
-        }
-        logo.addView(nameV)
-        bar.addView(logo, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.START))
-
+        nameV = ui.text(profile.name, 46, INK, ui.bold).apply { setOnClickListener { openProfiles() } }
         val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         buttons.addView(ui.pill("NAPLÓ") { startActivity(Intent(this, LogActivity::class.java)) })
         buttons.addView(ui.pill("MENÜ") { openMenu() }, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(14) })
-        bar.addView(buttons, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.END))
-        return bar
+        return ui.topBar(ui.logo("SÚLYZÓS EDZÉS", nameV), null, buttons)
     }
 
     private fun buildPanel(): View {
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, ui.ipx(115), ui.ipx(45), ui.ipx(20))
-        }
+        val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         headV = ui.label("")
         panel.addView(headV)
         titleV = ui.text("", 56, INK, ui.bold)
@@ -272,12 +247,7 @@ class WeightsActivity : KettlerActivity() {
     }
 
     private fun buildBottomBar(): View {
-        val bar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(BAR)
-            setPadding(ui.ipx(50), 0, ui.ipx(30), 0)
-        }
+        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val dayCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         dayCol.addView(ui.text("NAP", 17, BAR_MUTED, ui.medium, 0.12f).apply {
             ellipsize = null
@@ -296,20 +266,22 @@ class WeightsActivity : KettlerActivity() {
             rightMargin = ui.ipx(30)
         })
 
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val discard = ui.pillButton(R.drawable.ic_stop, "Elvetés", BAR_LINE, Color.WHITE) { confirmDiscard() }
         discardBtn = discard
-        bar.addView(discard, ui.lp(ui.ipx(250), ui.ipx(85)).apply { rightMargin = ui.ipx(20) })
+        buttons.addView(discard, ui.lp(ui.ipx(250), ui.ipx(85)).apply { rightMargin = ui.ipx(20) })
 
         mainBtn = ui.pillButton(R.drawable.ic_play, "Indítás", BUTTON, INK) { onMainButton() }
-        bar.addView(mainBtn, ui.lp(ui.ipx(290), ui.ipx(85)))
-        return bar
+        buttons.addView(mainBtn, ui.lp(ui.ipx(290), ui.ipx(85)))
+        return ui.bottomBar(bar, buttons)
     }
 
     companion object {
         private const val BAR_H = 145
+        private const val STATE_DAY = "day"
 
-        // A súlyzós fotón a pad és az állvány vízszintes helye (a kép pixeleiben)
-        private const val PHOTO_LEFT = 60f
-        private const val PHOTO_RIGHT = 980f
+        // A súlyzós fotón a pad és az állvány vízszintes helye (a kép pixeleiben, 1200 px széles kép)
+        private const val PHOTO_LEFT = 260f
+        private const val PHOTO_RIGHT = 970f
     }
 }

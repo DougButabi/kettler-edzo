@@ -15,7 +15,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = buildNumber
-        versionName = "0.6.$buildNumber"
+        versionName = "0.7.$buildNumber"
     }
 
     // Fix kulcs, hogy a frissítés ne kérje az előző verzió eltávolítását.
@@ -44,4 +44,9 @@ android {
 
 kotlin {
     jvmToolchain(17)
+}
+
+// Az egyetlen külső könyvtár: OpenStreetMap-térkép a kerékpáros részhez (regisztráció, API-kulcs nélkül).
+dependencies {
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
 }

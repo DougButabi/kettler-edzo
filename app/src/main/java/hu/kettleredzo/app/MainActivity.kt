@@ -286,68 +286,31 @@ class MainActivity : KettlerActivity() {
 
     // ---- Felület felépítése ----
 
+    // Fekvőben a fotó a bal félben, az adatok jobbra; állóban (telefon) egymás alatt (lásd ui.homeScreen).
     private fun buildUi(): View {
-        val root = FrameLayout(this)
-        val photoArea = buildPhoto(root)
-        root.addView(photoArea, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT).apply {
-            bottomMargin = ui.ipx(BAR_H)
-        })
-        root.addView(buildTopBar(), FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, Gravity.TOP))
-
-        val content = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        content.addView(View(this), ui.lp(0, MATCH_PARENT, 0.525f))
-        content.addView(buildPanel(), ui.lp(0, MATCH_PARENT, 0.475f))
-        root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT).apply {
-            bottomMargin = ui.ipx(BAR_H)
-        })
-
-        root.addView(buildBottomBar(), FrameLayout.LayoutParams(MATCH_PARENT, ui.ipx(BAR_H), Gravity.BOTTOM))
-        return root
-    }
-
-    private fun buildPhoto(root: FrameLayout): View {
         // Férfi profilnál férfi, egyébként női fotó (a két kép kompozíciója azonos)
         photoSex = profile.sex
         val res = if (profile.sex == Sex.MALE) R.drawable.trener_ferfi else R.drawable.trener
-        return ui.photoArea(root, res, MACHINE_LEFT, MACHINE_RIGHT)
+        return ui.homeScreen(res, MACHINE_LEFT, MACHINE_RIGHT, buildTopBar(), buildPanel(), buildBottomBar(), BAR_H)
     }
 
     private fun buildTopBar(): View {
-        val bar = FrameLayout(this).apply { setPadding(ui.ipx(35), ui.ipx(22), ui.ipx(28), 0) }
-
-        val logo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        logo.addView(ui.text("KETTLER", 32, INK, ui.light, 0.35f))
-        logo.addView(ui.text("VITO XL · ELLIPTIKUS TRÉNER", 13, MUTED, ui.medium, 0.25f).apply {
-            setPadding(0, ui.ipx(8), 0, 0)
-        })
         // A profil neve nagyban; koppintásra profilváltás
-        nameV = ui.text(profile.name, 46, INK, ui.bold).apply {
-            setPadding(0, ui.ipx(18), 0, ui.ipx(6))
-            setOnClickListener { onProfileName() }
-        }
-        logo.addView(nameV)
-        bar.addView(logo, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.START))
-
+        nameV = ui.text(profile.name, 46, INK, ui.bold).apply { setOnClickListener { onProfileName() } }
         modePill = ui.text("", 20, INK, ui.medium).apply {
             background = ui.rounded(PILL, 30)
             setPadding(ui.ipx(40), ui.ipx(14), ui.ipx(40), ui.ipx(14))
             setOnClickListener { openMode() }
         }
-        bar.addView(modePill, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER_HORIZONTAL))
-
         val right = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         right.addView(ui.pill("NAPLÓ") { startActivity(Intent(this, LogActivity::class.java)) })
-        right.addView(ui.pill("BEÁLLÍTÁSOK") { openSettings() },
+        right.addView(ui.pill(if (ui.portrait) "MENÜ" else "BEÁLLÍTÁSOK") { openSettings() },
             ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(14) })
-        bar.addView(right, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.END))
-        return bar
+        return ui.topBar(ui.logo("VITO XL · ELLIPTIKUS TRÉNER", nameV), modePill, right)
     }
 
     private fun buildPanel(): View {
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, ui.ipx(115), ui.ipx(45), ui.ipx(20))
-        }
+        val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
         // 1. sor: sebesség és eltelt idő
         val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -452,13 +415,10 @@ class MainActivity : KettlerActivity() {
         return col
     }
 
+    // Alsó sáv: ellenállás, fordulat és kapcsolat (bal), Befejezés és a fő gomb (jobb). Állóban két sorban.
     private fun buildBottomBar(): View {
-        val bar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(BAR)
-            setPadding(ui.ipx(50), 0, ui.ipx(30), 0)
-        }
+        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val gap = if (ui.portrait) 28 else 55
 
         // Ellenállás: a gép nem méri, kézzel állítjuk
         bar.addView(ui.icon(R.drawable.ic_bars, 44, Color.WHITE))
@@ -479,11 +439,11 @@ class MainActivity : KettlerActivity() {
         levelRow.addView(levelV)
         levelRow.addView(ui.roundButton("+") { changeLevel(1) })
         levelCol.addView(levelRow, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(6) })
-        bar.addView(levelCol, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(30) })
+        bar.addView(levelCol, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(if (ui.portrait) 16 else 30) })
 
         bar.addView(ui.line(BAR_LINE), ui.lp(1, ui.ipx(80)).apply {
-            leftMargin = ui.ipx(55)
-            rightMargin = ui.ipx(55)
+            leftMargin = ui.ipx(gap)
+            rightMargin = ui.ipx(gap)
         })
 
         // Fordulatszám
@@ -497,7 +457,7 @@ class MainActivity : KettlerActivity() {
             leftMargin = ui.ipx(12)
         })
         rpmCol.addView(rpmRow, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(6) })
-        bar.addView(rpmCol, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(30) })
+        bar.addView(rpmCol, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(if (ui.portrait) 16 else 30) })
 
         // Kapcsolat állapota
         statusV = ui.text("", 20, RED, ui.medium).apply { gravity = Gravity.END }
@@ -507,26 +467,22 @@ class MainActivity : KettlerActivity() {
         })
 
         // Befejezés (csak szünetben) és a fő gomb
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val finish = ui.pillButton(R.drawable.ic_stop, "Befejezés", BAR_LINE, Color.WHITE) {
             finishWorkout()
             render()
         }
         finishBtn = finish
-        bar.addView(finish, ui.lp(ui.ipx(250), ui.ipx(85)).apply { rightMargin = ui.ipx(20) })
+        buttons.addView(finish, ui.lp(ui.ipx(250), ui.ipx(85)).apply { rightMargin = ui.ipx(20) })
 
         val main = ui.pillButton(R.drawable.ic_play, "Indítás", BUTTON, INK) { onMainButton() }
         mainIcon = main.getChildAt(0) as ImageView
         mainText = main.getChildAt(1) as TextView
-        bar.addView(main, ui.lp(ui.ipx(290), ui.ipx(85)))
-        return bar
+        buttons.addView(main, ui.lp(ui.ipx(290), ui.ipx(85)))
+        return ui.bottomBar(bar, buttons)
     }
 
-    // Felirat az alsó sávban. A betűköz miatt az Android néha kevesebb helyet mér,
-    // és levágná a végét („FORDU…”), ezért nincs kipontozás, és kap egy kis ráhagyást.
-    private fun barLabel(s: String) = ui.text(s, 17, BAR_MUTED, ui.medium, 0.12f).apply {
-        ellipsize = null
-        setPadding(0, 0, ui.ipx(10), 0)
-    }
+    private fun barLabel(s: String) = ui.barLabel(s)
 
     companion object {
         private const val MIN_SAVED_MS = 60_000L

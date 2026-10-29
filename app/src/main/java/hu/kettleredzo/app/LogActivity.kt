@@ -35,20 +35,23 @@ class LogActivity : KettlerActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(BG)
-            setPadding(ui.ipx(45), ui.ipx(30), ui.ipx(45), 0)
+            setPadding(ui.ipx(if (ui.portrait) 30 else 45), ui.ipx(30), ui.ipx(if (ui.portrait) 30 else 45), 0)
         }
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
         top.addView(ui.pill("← VISSZA") { finish() })
-        top.addView(ui.text("${profile.name} naplója", 44, INK, ui.bold), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
-            leftMargin = ui.ipx(36)
+        top.addView(ui.text("${profile.name} naplója", if (ui.portrait) 36 else 44, INK, ui.bold), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
+            leftMargin = ui.ipx(if (ui.portrait) 24 else 36)
         })
         root.addView(top)
 
-        body = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        root.addView(body, ui.lp(MATCH_PARENT, 0, 1f).apply { topMargin = ui.ipx(30) })
+        // Fekvőben bal oldalt az összesítők, jobbra a lista; állóban (telefon) egymás alatt.
+        body = LinearLayout(this).apply {
+            orientation = if (ui.portrait) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        }
+        root.addView(body, ui.lp(MATCH_PARENT, 0, 1f).apply { topMargin = ui.ipx(if (ui.portrait) 20 else 30) })
         setContentView(root)
         build()
     }
@@ -60,9 +63,12 @@ class LogActivity : KettlerActivity() {
         // Bal oldal: összesítők és diagram
         val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         left.addView(totalsCard("EZEN A HÉTEN", db.totals(profile.id, startOfWeek())))
-        left.addView(totalsCard("ÖSSZESEN", db.totals(profile.id)), ui.lp(MATCH_PARENT, WRAP_CONTENT).apply {
-            topMargin = ui.ipx(24)
-        })
+        // Állóban a helyért csak a heti összesítő látszik
+        if (!ui.portrait) {
+            left.addView(totalsCard("ÖSSZESEN", db.totals(profile.id)), ui.lp(MATCH_PARENT, WRAP_CONTENT).apply {
+                topMargin = ui.ipx(24)
+            })
+        }
 
         val chartCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -80,12 +86,13 @@ class LogActivity : KettlerActivity() {
                 cal.get(Calendar.DAY_OF_MONTH).toString()
             }
         }
-        chartCard.addView(chart, ui.lp(MATCH_PARENT, 0, 1f).apply { topMargin = ui.ipx(12) })
-        left.addView(chartCard, ui.lp(MATCH_PARENT, 0, 1f).apply {
-            topMargin = ui.ipx(24)
-            bottomMargin = ui.ipx(30)
+        val portrait = ui.portrait
+        chartCard.addView(chart, if (portrait) ui.lp(MATCH_PARENT, ui.ipx(220)) else ui.lp(MATCH_PARENT, 0, 1f).apply { topMargin = ui.ipx(12) })
+        left.addView(chartCard, (if (portrait) ui.lp(MATCH_PARENT, WRAP_CONTENT) else ui.lp(MATCH_PARENT, 0, 1f)).apply {
+            topMargin = ui.ipx(if (portrait) 16 else 24)
+            bottomMargin = ui.ipx(if (portrait) 16 else 30)
         })
-        body.addView(left, ui.lp(0, MATCH_PARENT, 0.44f))
+        body.addView(left, if (portrait) ui.lp(MATCH_PARENT, WRAP_CONTENT) else ui.lp(0, MATCH_PARENT, 0.44f))
 
         // Jobb oldal: az edzések listája, a legfrissebb elöl
         val list = LinearLayout(this).apply {
@@ -99,9 +106,8 @@ class LogActivity : KettlerActivity() {
         for (w in workouts) {
             list.addView(workoutRow(w), ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = ui.ipx(16) })
         }
-        body.addView(ScrollView(this).apply { addView(list) }, ui.lp(0, MATCH_PARENT, 0.56f).apply {
-            leftMargin = ui.ipx(36)
-        })
+        body.addView(ScrollView(this).apply { addView(list) },
+            if (portrait) ui.lp(MATCH_PARENT, 0, 1f) else ui.lp(0, MATCH_PARENT, 0.56f).apply { leftMargin = ui.ipx(36) })
     }
 
     private fun totalsCard(title: String, t: Totals): View {
@@ -140,6 +146,9 @@ class LogActivity : KettlerActivity() {
             Sport.ELLIPTICAL ->
                 "${formatTime(w.movingMs)}   ·   ${formatNum(w.distanceKm, 2)} km   ·   ${formatNum(w.kcal, 0)} kcal" to
                     "átlag ${formatNum(w.avgSpeed, 1)} km/h   ·   max ${formatNum(w.maxSpeed, 1)} km/h   ·   fokozat ${w.level}"
+            Sport.BIKE ->
+                "${formatTime(w.movingMs)}   ·   ${formatNum(w.distanceKm, 2)} km   ·   ~${formatNum(w.kcal, 0)} kcal" to
+                    "átlag ${formatNum(w.avgSpeed, 1)} km/h   ·   max ${formatNum(w.maxSpeed, 1)} km/h   ·   ↑ ${formatNum(w.elevGain ?: 0.0, 0)} m"
             Sport.WEIGHTS -> {
                 val s = Db.get(this).liftSummary(w.id)
                 "${formatTime(w.movingMs)}   ·   ${s.doneSets} sorozat   ·   ${formatNum(s.volumeKg, 0)} kg   ·   ~${formatNum(w.kcal, 0)} kcal" to

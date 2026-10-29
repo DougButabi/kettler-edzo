@@ -28,13 +28,16 @@ class ProfileActivity : KettlerActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(BG)
-            setPadding(ui.ipx(60), ui.ipx(45), ui.ipx(30), 0)
+            if (ui.portrait) setPadding(ui.ipx(35), ui.ipx(30), ui.ipx(5), 0) else setPadding(ui.ipx(60), ui.ipx(45), ui.ipx(30), 0)
         }
         root.addView(ui.text("KETTLER", 32, INK, ui.light, 0.35f))
         root.addView(ui.text("Ki edz ma?", 72, INK, ui.bold), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
             topMargin = ui.ipx(40)
         })
-        root.addView(ui.text("Hosszan nyomva szerkesztheted vagy törölheted a profilt.", 20, MUTED, ui.regular),
+        root.addView(ui.text("Hosszan nyomva szerkesztheted vagy törölheted a profilt.", 20, MUTED, ui.regular).apply {
+            maxLines = 2
+            ellipsize = null
+        },
             ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(14) })
         grid = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -54,9 +57,10 @@ class ProfileActivity : KettlerActivity() {
     private fun refresh() {
         grid.removeAllViews()
         val tiles = Db.get(this).profiles().map { profileTile(it) } + addTile()
-        for (rowTiles in tiles.chunked(COLUMNS)) {
+        val columns = if (ui.portrait) 2 else COLUMNS
+        for (rowTiles in tiles.chunked(columns)) {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            for (i in 0 until COLUMNS) {
+            for (i in 0 until columns) {
                 val tile = rowTiles.getOrNull(i) ?: View(this)
                 row.addView(tile, ui.lp(0, ui.ipx(250), 1f).apply { rightMargin = ui.ipx(30) })
             }

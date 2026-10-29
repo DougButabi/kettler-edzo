@@ -38,40 +38,55 @@ class ProfileEditActivity : KettlerActivity() {
         ui = Ui(this)
         profile = Db.get(this).profile(intent.getLongExtra(EXTRA_PROFILE_ID, -1))
         sex = profile?.sex
+        savedInstanceState?.getString(STATE_SEX)?.let { sex = Sex.of(it) }
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(BG)
-        }
-        root.addView(buildLeft(), ui.lp(0, MATCH_PARENT, 0.38f))
-        root.addView(buildForm(), ui.lp(0, MATCH_PARENT, 0.62f))
+        val root = ui.splitRoot()
+        root.addView(buildLeft(), ui.sideLp(0.38f))
+        root.addView(buildForm(), ui.mainLp(0.62f))
         setContentView(root)
+        // Forgatás után (telefon) a beírt adatok megmaradnak.
+        savedInstanceState?.let {
+            nameE.setText(it.getString(STATE_NAME, ""))
+            yearE.setText(it.getString(STATE_YEAR, ""))
+            weightE.setText(it.getString(STATE_WEIGHT, ""))
+        }
         updateSex()
     }
 
-    // Bal oldal: cím és a névből élőben frissülő monogram
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(STATE_NAME, nameE.text.toString())
+        outState.putString(STATE_YEAR, yearE.text.toString())
+        outState.putString(STATE_WEIGHT, weightE.text.toString())
+        sex?.let { outState.putString(STATE_SEX, it.code) }
+    }
+
+    // Bal oldal: cím és a névből élőben frissülő monogram (állóban kisebb, fent)
     private fun buildLeft(): LinearLayout {
         val left = ui.sidePanel(if (profile == null) "Új profil" else "Profil\nszerkesztése")
-        avatar = ui.text("", 110, Color.WHITE, ui.bold).apply {
+        val size = if (ui.portrait) 120 else 220
+        avatar = ui.text("", size / 2, Color.WHITE, ui.bold).apply {
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(BAR)
             }
         }
-        left.addView(avatar, ui.lp(ui.ipx(220), ui.ipx(220)).apply { topMargin = ui.ipx(50) })
-        left.addView(
-            ui.text("A testadatokból számolom majd\na max. pulzust és a kalóriát.", 20, MUTED, ui.regular).apply { maxLines = 2 },
-            ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(40) },
-        )
+        left.addView(avatar, ui.lp(ui.ipx(size), ui.ipx(size)).apply { topMargin = ui.ipx(if (ui.portrait) 20 else 50) })
+        if (!ui.portrait) {
+            left.addView(
+                ui.text("A testadatokból számolom majd\na max. pulzust és a kalóriát.", 20, MUTED, ui.regular).apply { maxLines = 2 },
+                ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(40) },
+            )
+        }
         return left
     }
 
     private fun buildForm(): ScrollView {
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(ui.ipx(20), ui.ipx(120), ui.ipx(60), ui.ipx(60))
         }
+        ui.paneLayout(form)
         val p = profile
 
         nameE = ui.field(p?.name ?: "", "pl. Anna", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS, false)
@@ -177,5 +192,9 @@ class ProfileEditActivity : KettlerActivity() {
 
     companion object {
         const val EXTRA_PROFILE_ID = "profileId"
+        private const val STATE_NAME = "name"
+        private const val STATE_YEAR = "year"
+        private const val STATE_WEIGHT = "weight"
+        private const val STATE_SEX = "sex"
     }
 }

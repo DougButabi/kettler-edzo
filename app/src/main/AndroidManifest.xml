@@ -5,6 +5,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Kerékpár: GPS, előtérszolgáltatás helyhez, értesítés a tekerés közbeni adatokkal -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Az ESP32 sima http-n beszél, ezért kell a titkosítatlan forgalom. -->
     <application
@@ -16,8 +22,7 @@
 
         <activity
             android:name=".ProfileActivity"
-            android:exported="true"
-            android:screenOrientation="sensorLandscape">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -26,63 +31,65 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape" />
+            android:exported="false" />
 
         <!-- adjustPan: a billentyűzet felett mindig látszik a szerkesztett mező -->
         <activity
             android:name=".ProfileEditActivity"
             android:exported="false"
-            android:screenOrientation="sensorLandscape"
             android:windowSoftInputMode="adjustPan|stateHidden" />
 
         <activity
             android:name=".SettingsActivity"
             android:exported="false"
-            android:screenOrientation="sensorLandscape"
             android:windowSoftInputMode="adjustPan|stateHidden" />
 
         <activity
             android:name=".ModeActivity"
             android:exported="false"
-            android:screenOrientation="sensorLandscape"
             android:windowSoftInputMode="adjustPan|stateHidden" />
 
         <activity
             android:name=".LogActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape" />
+            android:exported="false" />
 
         <activity
             android:name=".SportActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape" />
+            android:exported="false" />
 
         <activity
             android:name=".WeightsActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape" />
+            android:exported="false" />
 
         <activity
             android:name=".WeightsMenuActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape" />
+            android:exported="false" />
 
         <activity
             android:name=".PlanDayActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape" />
+            android:exported="false" />
 
         <activity
             android:name=".LiftActivity"
-            android:exported="false"
-            android:screenOrientation="sensorLandscape" />
+            android:exported="false" />
 
         <activity
             android:name=".CatalogEditActivity"
             android:exported="false"
-            android:screenOrientation="sensorLandscape"
             android:windowSoftInputMode="adjustPan|stateHidden" />
+
+        <activity
+            android:name=".BikeActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".RideActivity"
+            android:exported="false" />
+
+        <service
+            android:name=".BikeService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
         <service
             android:name=".WorkoutService"
