@@ -81,6 +81,10 @@ object Sync {
         executor.execute {
             val r = try {
                 run(app)
+            } catch (e: RevokedException) {
+                // A kulcsot visszavonták a ULC-ben: kijelentkezünk, a Beállításokban újra be lehet lépni.
+                logout(app)
+                Result(false, 0, 0, "a kulcsot visszavonták, jelentkezz be újra")
             } catch (e: java.io.IOException) {
                 Log.w(TAG, "Szinkron: a ULC nem érhető el", e)
                 Result(false, 0, 0, "a ULC nem érhető el (csak otthoni hálózaton megy)")
@@ -258,6 +262,50 @@ object Sync {
         }
     }
 
+    // ---- Bejelentkezés ----
+
+    // Egyszeri bejelentkezés a ULC-felhasználóval: a ULC eszközkulcsot ad, a jelszót nem tároljuk.
+    // A visszahívás a fő szálon jön: null, ha sikerült, különben a hibaüzenet.
+    fun login(c: Context, url: String, user: String, password: String, onDone: (String?) -> Unit) {
+        val app = c.applicationContext
+        executor.execute {
+            val error = try {
+                Prefs.setSyncUrl(app, url)
+                val body = JSONObject().put("username", user).put("password", password).put("device", android.os.Build.MODEL)
+                val conn = (URL(Prefs.syncUrl(app) + "/api/edzes/login").openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 5000
+                    readTimeout = 15000
+                    requestMethod = "POST"
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                }
+                try {
+                    conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                    when (conn.responseCode) {
+                        200 -> {
+                            val o = JSONObject(conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
+                            Prefs.setSyncToken(app, o.getString("token"))
+                            Prefs.setSyncAccount(app, o.optString("device"))
+                            null
+                        }
+                        401 -> "Hibás felhasználónév vagy jelszó."
+                        else -> "A ULC hibát jelzett (${conn.responseCode})."
+                    }
+                } finally {
+                    conn.disconnect()
+                }
+            } catch (e: java.io.IOException) {
+                "A ULC nem érhető el. Otthoni wifin vagy? Jó a cím?"
+            }
+            main.post { onDone(error) }
+        }
+    }
+
+    fun logout(c: Context) {
+        Prefs.setSyncToken(c, "")
+        Prefs.setSyncAccount(c, "")
+    }
+
     // ---- Saját fotók (file:kepek/<név>) ----
 
     private fun addImage(c: Context, image: String, images: JSONObject) {
@@ -302,7 +350,7 @@ object Sync {
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             conn.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
             val code = conn.responseCode
-            if (code == 401) throw IllegalStateException("érvénytelen eszközkulcs")
+            if (code == 401) throw RevokedException()
             if (code != 200) throw IllegalStateException("a szerver hibát jelzett ($code)")
             return conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
         } finally {
@@ -318,6 +366,8 @@ object Sync {
             conn.disconnect()
         }
     }
+
+    private class RevokedException : Exception()
 
     private const val TAG = "Sync"
 }

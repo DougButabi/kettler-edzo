@@ -407,32 +407,68 @@ class SettingsActivity : KettlerActivity() {
     // ==== Általános ====
 
     // Szinkron a ULC-vel: cím, eszközkulcs (a ULC Edzés oldalán készül), állapot, kézi indítás
+    // Szinkron a ULC-vel. Bejelentkezés a ULC-felhasználóval (a ULC eszközkulcsot ad, a jelszót
+    // nem tároljuk), utána az állapot, kézi indítás és kijelentkezés.
     private fun buildSync() {
-        pane.addView(ui.label("ULC CÍME"))
-        val url = ui.field(Prefs.syncUrl(this), Prefs.DEFAULT_SYNC_URL, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, false)
-        pane.addView(url, ui.fieldLp())
-        pane.addView(ui.label("ESZKÖZKULCS"), sectionLp())
-        val token = ui.field(Prefs.syncToken(this), "a ULC Edzés oldalán készül", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, true)
-        pane.addView(token, ui.fieldLp())
+        if (!Sync.configured(this)) {
+            buildSyncLogin()
+            return
+        }
+        pane.addView(ui.label("BEJELENTKEZVE"))
+        pane.addView(ui.text(Prefs.syncAccount(this).ifBlank { "ULC" }, 32, INK, ui.bold).apply { maxLines = 2 }, ui.fieldLp())
+        pane.addView(note(Prefs.syncUrl(this)), ui.fieldLp())
         val status = note(syncStatusText())
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        row.addView(ui.button("Mentés és szinkron", BAR, Color.WHITE) {
-            Prefs.setSyncUrl(this, url.text.toString().ifBlank { Prefs.DEFAULT_SYNC_URL })
-            Prefs.setSyncToken(this, token.text.toString())
-            if (!Sync.configured(this)) {
-                ui.toast("Add meg az eszközkulcsot.")
-                return@button
-            }
+        row.addView(ui.button("Szinkronizálás most", BAR, Color.WHITE) {
             status.text = "Szinkronizálás…"
             Sync.runAsync(this) { if (!isFinishing) status.text = syncStatusText() }
         }, ui.lp(ui.ipx(360), ui.ipx(85)))
+        row.addView(ui.button("Kijelentkezés", PILL, INK) {
+            Sync.logout(this)
+            show(Section.SYNC)
+        }, ui.lp(ui.ipx(280), ui.ipx(85)).apply { leftMargin = ui.ipx(16) })
         pane.addView(row, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(20) })
         pane.addView(ui.label("UTOLSÓ SZINKRON"), sectionLp())
         pane.addView(status, ui.fieldLp())
         pane.addView(ui.note(
             "A telefon és a tablet a ULC-n keresztül osztozik a profilokon, az edzésterven, a saját gyakorlatokon " +
                 "és a naplón. Otthon, a helyi hálózaton szinkronizál: az app indításakor, edzés mentése után és a " +
-                "beállításokból kilépve. Az eszközkulcsot a ULC Edzés oldalán készítheted.",
+                "beállításokból kilépve.",
+            6,
+        ), sectionLp())
+    }
+
+    private fun buildSyncLogin() {
+        pane.addView(ui.label("ULC CÍME"))
+        val url = ui.field(Prefs.syncUrl(this), Prefs.DEFAULT_SYNC_URL, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, false)
+        pane.addView(url, ui.fieldLp())
+        pane.addView(ui.label("ULC-FELHASZNÁLÓNÉV"), sectionLp())
+        val user = ui.field("", "pl. tamas", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, false)
+        pane.addView(user, ui.fieldLp())
+        pane.addView(ui.label("JELSZÓ"), sectionLp())
+        val password = ui.field("", "", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, true)
+        pane.addView(password, ui.fieldLp())
+        val status = note("")
+        pane.addView(ui.button("Bejelentkezés", BAR, Color.WHITE) {
+            if (user.text.isBlank() || password.text.isEmpty()) {
+                ui.toast("Add meg a felhasználónevet és a jelszót.")
+                return@button
+            }
+            status.text = "Bejelentkezés…"
+            Sync.login(this, url.text.toString().ifBlank { Prefs.DEFAULT_SYNC_URL }, user.text.toString(), password.text.toString()) { error ->
+                if (isFinishing) return@login
+                if (error != null) {
+                    status.text = error
+                    return@login
+                }
+                Sync.runAsync(this) { if (!isFinishing) show(Section.SYNC) }
+                show(Section.SYNC)
+            }
+        }, ui.lp(ui.ipx(320), ui.ipx(85)).apply { topMargin = ui.ipx(20) })
+        pane.addView(status, ui.fieldLp())
+        pane.addView(ui.note(
+            "Egyszer kell bejelentkezni, ugyanazzal, amivel a ULC weboldalára. A jelszót az app nem tárolja: " +
+                "a ULC egy saját kulcsot ad ennek az eszköznek, amit a ULC Edzés oldalán vissza is vonhatsz.",
             6,
         ), sectionLp())
     }

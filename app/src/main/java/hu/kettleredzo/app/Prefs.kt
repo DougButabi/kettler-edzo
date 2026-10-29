@@ -17,6 +17,10 @@ object Prefs {
     fun syncToken(c: Context): String = prefs(c).getString("syncToken", "") ?: ""
     fun setSyncToken(c: Context, value: String) = prefs(c).edit().putString("syncToken", value.trim()).apply()
 
+    // Kivel és melyik eszközként jelentkezett be (a ULC adja vissza, pl. "Pixel 7 · Tamás")
+    fun syncAccount(c: Context): String = prefs(c).getString("syncAccount", "") ?: ""
+    fun setSyncAccount(c: Context, value: String) = prefs(c).edit().putString("syncAccount", value).apply()
+
     // A szerver utoljára látott változás-sorszáma és az utolsó sikeres feltöltés ideje
     fun syncRev(c: Context): Long = prefs(c).getLong("syncRev", 0)
     fun syncPushedAt(c: Context): Long = prefs(c).getLong("syncPushedAt", 0)
