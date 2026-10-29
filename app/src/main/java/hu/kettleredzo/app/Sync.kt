@@ -138,13 +138,20 @@ object Sync {
         }
 
         val body = JSONObject().put("since", since).put("changes", changes).put("images", images)
+        // A személyes eszköz megmondja, kié: csak annak a profilnak az adatai jönnek le rá.
+        if (Prefs.personal(c) && Prefs.boundProfileUuid(c).isNotBlank()) body.put("profile_uuid", Prefs.boundProfileUuid(c))
         val response = JSONObject(post(c, "/api/edzes/sync", body.toString()))
 
         // ---- Álnevek (összefésült sorok), majd a letöltött változások ----
         var pulled = 0
         db.beginTransaction()
         try {
-            response.optJSONObject("aliases")?.let { applyAliases(c, db, it) }
+            response.optJSONObject("aliases")?.let { aliases ->
+                applyAliases(c, db, aliases)
+                // Ha a saját profilunkat a szerver egy meglévőbe olvasztotta, mostantól azt kell kérnünk.
+                aliases.optJSONObject("profiles")?.optString(Prefs.boundProfileUuid(c))?.takeIf { it.isNotEmpty() }
+                    ?.let { Prefs.setBoundProfileUuid(c, it) }
+            }
             val incoming = response.optJSONObject("changes") ?: JSONObject()
             val idCache = HashMap<String, HashMap<String, Long?>>()
             for (t in TABLES) {
@@ -266,12 +273,13 @@ object Sync {
 
     // Egyszeri bejelentkezés a ULC-felhasználóval: a ULC eszközkulcsot ad, a jelszót nem tároljuk.
     // A visszahívás a fő szálon jön: null, ha sikerült, különben a hibaüzenet.
-    fun login(c: Context, url: String, user: String, password: String, onDone: (String?) -> Unit) {
+    fun login(c: Context, url: String, user: String, password: String, personal: Boolean, onDone: (String?) -> Unit) {
         val app = c.applicationContext
         executor.execute {
             val error = try {
                 Prefs.setSyncUrl(app, url)
                 val body = JSONObject().put("username", user).put("password", password).put("device", android.os.Build.MODEL)
+                    .put("mode", if (personal) "personal" else "shared")
                 val conn = (URL(Prefs.syncUrl(app) + "/api/edzes/login").openConnection() as HttpURLConnection).apply {
                     connectTimeout = 5000
                     readTimeout = 15000
@@ -286,6 +294,9 @@ object Sync {
                             val o = JSONObject(conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
                             Prefs.setSyncToken(app, o.getString("token"))
                             Prefs.setSyncAccount(app, o.optString("device"))
+                            Prefs.setPersonal(app, personal)
+                            Prefs.setBoundProfileUuid(app, "")
+                            Prefs.setSetupProfiles(app, (o.optJSONArray("profiles") ?: JSONArray()).toString())
                             null
                         }
                         401 -> "Hibás felhasználónév vagy jelszó."
@@ -301,10 +312,23 @@ object Sync {
         }
     }
 
+    // Kijelentkezés (pl. visszavont kulcsnál): a következő indításkor újra a beállító képernyő jön.
     fun logout(c: Context) {
         Prefs.setSyncToken(c, "")
         Prefs.setSyncAccount(c, "")
+        Prefs.setBoundProfileUuid(c, "")
     }
+
+    // Személyes eszköz: a hozzárendelt profil helyi azonosítója (ha már megvan nálunk)
+    fun boundProfileId(c: Context): Long? {
+        val uuid = Prefs.boundProfileUuid(c).ifBlank { return null }
+        return Db.get(c).readableDatabase.rawQuery("SELECT id FROM profiles WHERE uuid = ? AND deleted = 0", arrayOf(uuid))
+            .use { if (it.moveToFirst()) it.getLong(0) else null }
+    }
+
+    fun profileUuid(c: Context, id: Long): String? =
+        Db.get(c).readableDatabase.rawQuery("SELECT uuid FROM profiles WHERE id = ?", arrayOf(id.toString()))
+            .use { if (it.moveToFirst()) it.getString(0) else null }
 
     // ---- Saját fotók (file:kepek/<név>) ----
 

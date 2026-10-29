@@ -31,6 +31,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Első indítás: bejelentkezés a ULC-be és az eszköz típusa -->
+        <activity
+            android:name=".SetupActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustPan|stateHidden" />
+
         <activity
             android:name=".MainActivity"
             android:exported="false" />

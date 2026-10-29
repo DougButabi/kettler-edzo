@@ -57,10 +57,13 @@ class SportActivity : KettlerActivity() {
         root.addView(tiles, ui.lp(MATCH_PARENT, 0, 1f).apply { topMargin = ui.ipx(if (portrait) 30 else 50) })
 
         val bottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        bottom.addView(ui.pill("← PROFILOK") {
-            startActivity(Intent(this, ProfileActivity::class.java))
-            finish()
-        })
+        // Személyes eszközön nincs profilváltás
+        if (!Prefs.personal(this)) {
+            bottom.addView(ui.pill("← PROFILOK") {
+                startActivity(Intent(this, ProfileActivity::class.java))
+                finish()
+            })
+        }
         bottom.addView(View(this), ui.lp(0, 1, 1f))
         bottom.addView(ui.pill("NAPLÓ") { startActivity(Intent(this, LogActivity::class.java)) })
         root.addView(bottom, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(30) })

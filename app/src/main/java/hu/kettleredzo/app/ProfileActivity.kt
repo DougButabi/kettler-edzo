@@ -24,6 +24,19 @@ class ProfileActivity : KettlerActivity() {
             openMain()
             return
         }
+        // Bejelentkezés (eszközkulcs) nélkül nem indul az app; személyes eszközön nincs profilválasztó.
+        if (!Sync.configured(this) || (Prefs.personal(this) && Sync.boundProfileId(this) == null)) {
+            startActivity(Intent(this, SetupActivity::class.java))
+            finish()
+            return
+        }
+        if (Prefs.personal(this)) {
+            Prefs.setCurrentProfileId(this, Sync.boundProfileId(this)!!)
+            Sync.runAsync(this)
+            startActivity(Intent(this, SportActivity::class.java))
+            finish()
+            return
+        }
         ui = Ui(this)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

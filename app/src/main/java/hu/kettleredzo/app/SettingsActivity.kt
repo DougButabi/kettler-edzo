@@ -42,7 +42,6 @@ class SettingsActivity : KettlerActivity() {
         SIGNALS("Jelzések", Group.BIKE),
         SCREEN("Kijelző", Group.BIKE),
         USERS("Felhasználók", Group.GENERAL),
-        SYNC("Szinkron", Group.GENERAL),
         SOUNDS("Hangjelzések", Group.GENERAL),
         ABOUT("Névjegy", Group.GENERAL),
     }
@@ -137,7 +136,6 @@ class SettingsActivity : KettlerActivity() {
             Section.SIGNALS -> buildSignals()
             Section.SCREEN -> buildRideScreen()
             Section.USERS -> buildUsers()
-            Section.SYNC -> buildSync()
             Section.SOUNDS -> buildSounds()
             Section.ABOUT -> buildAbout()
         }
@@ -407,77 +405,12 @@ class SettingsActivity : KettlerActivity() {
     // ==== Általános ====
 
     // Szinkron a ULC-vel: cím, eszközkulcs (a ULC Edzés oldalán készül), állapot, kézi indítás
-    // Szinkron a ULC-vel. Bejelentkezés a ULC-felhasználóval (a ULC eszközkulcsot ad, a jelszót
-    // nem tároljuk), utána az állapot, kézi indítás és kijelentkezés.
-    private fun buildSync() {
-        if (!Sync.configured(this)) {
-            buildSyncLogin()
-            return
-        }
-        pane.addView(ui.label("BEJELENTKEZVE"))
-        pane.addView(ui.text(Prefs.syncAccount(this).ifBlank { "ULC" }, 32, INK, ui.bold).apply { maxLines = 2 }, ui.fieldLp())
-        pane.addView(note(Prefs.syncUrl(this)), ui.fieldLp())
-        val status = note(syncStatusText())
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        row.addView(ui.button("Szinkronizálás most", BAR, Color.WHITE) {
-            status.text = "Szinkronizálás…"
-            Sync.runAsync(this) { if (!isFinishing) status.text = syncStatusText() }
-        }, ui.lp(ui.ipx(360), ui.ipx(85)))
-        row.addView(ui.button("Kijelentkezés", PILL, INK) {
-            Sync.logout(this)
-            show(Section.SYNC)
-        }, ui.lp(ui.ipx(280), ui.ipx(85)).apply { leftMargin = ui.ipx(16) })
-        pane.addView(row, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(20) })
-        pane.addView(ui.label("UTOLSÓ SZINKRON"), sectionLp())
-        pane.addView(status, ui.fieldLp())
-        pane.addView(ui.note(
-            "A telefon és a tablet a ULC-n keresztül osztozik a profilokon, az edzésterven, a saját gyakorlatokon " +
-                "és a naplón. Otthon, a helyi hálózaton szinkronizál: az app indításakor, edzés mentése után és a " +
-                "beállításokból kilépve.",
-            6,
-        ), sectionLp())
-    }
-
-    private fun buildSyncLogin() {
-        pane.addView(ui.label("ULC CÍME"))
-        val url = ui.field(Prefs.syncUrl(this), Prefs.DEFAULT_SYNC_URL, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, false)
-        pane.addView(url, ui.fieldLp())
-        pane.addView(ui.label("ULC-FELHASZNÁLÓNÉV"), sectionLp())
-        val user = ui.field("", "pl. tamas", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, false)
-        pane.addView(user, ui.fieldLp())
-        pane.addView(ui.label("JELSZÓ"), sectionLp())
-        val password = ui.field("", "", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, true)
-        pane.addView(password, ui.fieldLp())
-        val status = note("")
-        pane.addView(ui.button("Bejelentkezés", BAR, Color.WHITE) {
-            if (user.text.isBlank() || password.text.isEmpty()) {
-                ui.toast("Add meg a felhasználónevet és a jelszót.")
-                return@button
-            }
-            status.text = "Bejelentkezés…"
-            Sync.login(this, url.text.toString().ifBlank { Prefs.DEFAULT_SYNC_URL }, user.text.toString(), password.text.toString()) { error ->
-                if (isFinishing) return@login
-                if (error != null) {
-                    status.text = error
-                    return@login
-                }
-                Sync.runAsync(this) { if (!isFinishing) show(Section.SYNC) }
-                show(Section.SYNC)
-            }
-        }, ui.lp(ui.ipx(320), ui.ipx(85)).apply { topMargin = ui.ipx(20) })
-        pane.addView(status, ui.fieldLp())
-        pane.addView(ui.note(
-            "Egyszer kell bejelentkezni, ugyanazzal, amivel a ULC weboldalára. A jelszót az app nem tárolja: " +
-                "a ULC egy saját kulcsot ad ennek az eszköznek, amit a ULC Edzés oldalán vissza is vonhatsz.",
-            6,
-        ), sectionLp())
-    }
-
-    private fun syncStatusText() = Prefs.syncStatus(this).ifBlank { "Még nem volt szinkron." }
-
     private fun buildUsers() {
         pane.addView(ui.label("FELHASZNÁLÓK"))
-        for (p in Db.get(this).profiles()) {
+        // Személyes eszközön csak a saját profil látszik, újat létrehozni nem lehet.
+        val personal = Prefs.personal(this)
+        val own = Sync.boundProfileId(this)
+        for (p in Db.get(this).profiles().filter { !personal || it.id == own }) {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 background = ui.rounded(CARD, 24)
@@ -489,6 +422,10 @@ class SettingsActivity : KettlerActivity() {
             card.addView(ui.text("${p.age} év · ${goalText(p.weightKg)} kg · $sex", 20, MUTED, ui.regular),
                 ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(6) })
             pane.addView(card, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(14) })
+        }
+        if (personal) {
+            pane.addView(note("Ez egy személyes eszköz, csak a saját profilod van rajta. Koppints rá a szerkesztéshez."), sectionLp())
+            return
         }
         pane.addView(ui.button("+ Új profil", BAR, Color.WHITE) { editProfile(null) },
             ui.lp(ui.ipx(300), ui.ipx(85)).apply { topMargin = ui.ipx(24) })
@@ -516,7 +453,7 @@ class SettingsActivity : KettlerActivity() {
         pane.addView(ui.text("Kettler edző", 44, INK, ui.bold))
         val version = packageManager.getPackageInfo(packageName, 0).versionName
         pane.addView(note("Verzió: $version"), ui.fieldLp())
-        pane.addView(note("Elliptikus tréner, súlyzós edzés és kerékpár. Az edzésnapló csak ezen az eszközön tárolódik."), ui.fieldLp())
+        pane.addView(note("Elliptikus tréner, súlyzós edzés és kerékpár. Az edzések az otthoni szerverrel (ULC) szinkronizálódnak."), ui.fieldLp())
         pane.addView(ui.label("GYAKORLATRAJZOK"), sectionLp())
         pane.addView(ui.note(
             "A beépített gyakorlatrajzok forrása az Everkinetic nyílt gyűjteménye (everkinetic.com, részben a wger.de-n át). Szerző: " +
@@ -525,6 +462,10 @@ class SettingsActivity : KettlerActivity() {
         ), ui.fieldLp())
         pane.addView(ui.label("TÉRKÉP"), sectionLp())
         pane.addView(note("Térképadatok: © OpenStreetMap közreműködők (openstreetmap.org/copyright)."), ui.fieldLp())
+        // A szinkron láthatatlan; itt egy sor mutatja, hogy működik-e.
+        val device = (if (Prefs.personal(this)) "személyes eszköz" else "közös eszköz") +
+            Prefs.syncAccount(this).takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+        pane.addView(note("Utolsó szinkron: ${Prefs.syncStatus(this).ifBlank { "még nem volt" }} ($device)"), sectionLp())
         pane.addView(ui.button("Kilépés az appból", DANGER, Color.WHITE) { exitApp() },
             ui.lp(ui.ipx(340), ui.ipx(85)).apply { topMargin = ui.ipx(48) })
         pane.addView(note("Ha fut edzés, előbb elmenti. Leállítja a háttérben futó kapcsolatot is."), ui.fieldLp())

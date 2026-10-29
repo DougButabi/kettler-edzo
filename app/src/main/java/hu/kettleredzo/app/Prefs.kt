@@ -21,6 +21,17 @@ object Prefs {
     fun syncAccount(c: Context): String = prefs(c).getString("syncAccount", "") ?: ""
     fun setSyncAccount(c: Context, value: String) = prefs(c).edit().putString("syncAccount", value).apply()
 
+    // Eszköztípus: közös (profilválasztóval) vagy személyes (egy profilhoz kötve, uuid szerint)
+    fun personal(c: Context): Boolean = prefs(c).getString("deviceMode", "shared") == "personal"
+    fun setPersonal(c: Context, value: Boolean) =
+        prefs(c).edit().putString("deviceMode", if (value) "personal" else "shared").apply()
+    fun boundProfileUuid(c: Context): String = prefs(c).getString("boundProfile", "") ?: ""
+    fun setBoundProfileUuid(c: Context, value: String) = prefs(c).edit().putString("boundProfile", value).apply()
+
+    // A bejelentkezéskor kapott profillista (a személyes eszköz ebből választ), JSON-ban
+    fun setupProfiles(c: Context): String = prefs(c).getString("setupProfiles", "[]") ?: "[]"
+    fun setSetupProfiles(c: Context, value: String) = prefs(c).edit().putString("setupProfiles", value).apply()
+
     // A szerver utoljára látott változás-sorszáma és az utolsó sikeres feltöltés ideje
     fun syncRev(c: Context): Long = prefs(c).getLong("syncRev", 0)
     fun syncPushedAt(c: Context): Long = prefs(c).getLong("syncPushedAt", 0)

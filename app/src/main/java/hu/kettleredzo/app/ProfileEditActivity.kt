@@ -123,7 +123,8 @@ class ProfileEditActivity : KettlerActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        if (p != null) {
+        // Személyes eszköz saját profilja nem törölhető
+        if (p != null && !(Prefs.personal(this) && Sync.boundProfileId(this) == p.id)) {
             buttons.addView(ui.button("Törlés", DANGER, Color.WHITE) { confirmDelete(p) }, ui.lp(ui.ipx(200), ui.ipx(85)))
         }
         buttons.addView(View(this), ui.lp(0, 1, 1f))

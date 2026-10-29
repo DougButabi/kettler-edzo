@@ -169,8 +169,26 @@ object Catalog {
     fun defaultEquipmentImage(seedKey: String?) = EQUIPMENT.firstOrNull { it.first == seedKey }?.let { "res:${it.third}" }
     fun defaultExerciseImage(seedKey: String?) = EXERCISES.firstOrNull { it.key == seedKey }?.image?.let { "res:$it" }
 
+    // A módosítatlan beépített elemek időbélyege: szinkronkor sosem írják felül egy másik eszközön tett módosítást.
+    const val SEED_TIME = 1L
+
+    // 7. adatbázis-verzió: a már telepített, de nem módosított beépített elemek is SEED_TIME-ot kapnak.
+    fun resetSeedTimes(db: SQLiteDatabase) {
+        for ((key, name, image) in EQUIPMENT) {
+            db.execSQL(
+                "UPDATE equipment SET updated_at = ? WHERE seed_key = ? AND name = ? AND image = ? AND deleted = 0",
+                arrayOf(SEED_TIME, key, name, "res:$image"),
+            )
+        }
+        for (e in EXERCISES) {
+            db.execSQL(
+                "UPDATE exercises SET updated_at = ? WHERE seed_key = ? AND name = ? AND image IS ? AND deleted = 0",
+                arrayOf(SEED_TIME, e.key, e.name, e.image?.let { "res:$it" }),
+            )
+        }
+    }
+
     fun seed(db: SQLiteDatabase) {
-        val now = System.currentTimeMillis()
         val equipmentIds = mutableMapOf<String, Long>()
         for ((key, name, image) in EQUIPMENT) {
             equipmentIds[key] = db.insertOrThrow("equipment", null, ContentValues().apply {
@@ -178,7 +196,7 @@ object Catalog {
                 put("image", "res:$image")
                 put("seed_key", key)
                 put("uuid", seedUuid("eq", key))
-                put("updated_at", now)
+                put("updated_at", SEED_TIME)
             })
         }
         for (e in EXERCISES) {
@@ -188,7 +206,7 @@ object Catalog {
                 put("image", e.image?.let { "res:$it" })
                 put("seed_key", e.key)
                 put("uuid", seedUuid("ex", e.key))
-                put("updated_at", now)
+                put("updated_at", SEED_TIME)
             })
         }
     }
