@@ -73,7 +73,7 @@ Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig 
 - **Mikor:** az app indításakor (ProfileActivity), edzés mentése után (elliptikus, kerékpár, súlyzós), és a Beállításokból kilépve; kézzel: BEÁLLÍTÁSOK → Szinkron. Csendben kihagyja, ha a ULC nem érhető el.
 - **Beállítás:** BEÁLLÍTÁSOK → Szinkron: ULC címe (alap `http://192.168.1.78:8091`), és egyszeri bejelentkezés a ULC-felhasználóval (`POST /api/edzes/login`). A ULC eszközkulcsot ad (az app ezt tárolja, a jelszót nem); visszavonni a ULC **Edzés** oldalán lehet, ekkor az app magától kijelentkezik.
 - **ULC oldal:** `webapp/src/lib/training.js`, `routes/edzes.js`, `views/edzes.ejs`, `views/edzes-reszletek.ejs` (Ultimate Life Control projekt). Táblák: `edzes_*`, `edzes_meta` (rev), `edzes_devices`. Képek: `data/EdzesKepek`.
-- **Emulátoros teszt:** az emulátor nem éri el a helyi hálózatot, ezért `node C:\Android\proxy.js` (127.0.0.1:8091 → NAS) és `adb reverse tcp:8091 tcp:8091`, az appban a cím `http://127.0.0.1:8091`. `C:\Android\setsync.ps1` beállítja az emulátort (kulcs a `C:\Android\Tmp\token.txt`-ből). Teszt után az éles ULC-ből töröld a tesztadatot és a kulcsot.
+- **Emulátoros teszt:** az emulátor nem éri el a helyi hálózatot, ezért `node C:\Android\proxy.js` (127.0.0.1:8091 → NAS) és `adb reverse tcp:8091 tcp:8091`, az appban a cím `http://127.0.0.1:8091`. A bejelentkezéshez valódi ULC-jelszó kell, azt a felhasználó adja meg (a `C:\Android\setsync.ps1` még a régi, kulcsbeírós oldalhoz készült). Teszt után az éles ULC-ből töröld a tesztadatot és a kulcsot.
 
 ## Előzmény: a központi adatbázis eredeti terve
 - **Központi adatbázis:** több eszköz (tablet + Android telefonok), akár házon kívül is.
