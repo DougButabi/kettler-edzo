@@ -71,7 +71,7 @@ data class LiftSummary(val doneSets: Int, val totalSets: Int, val volumeKg: Doub
 // Helyi adatbázis: profilok, edzésnapló és a súlyzós modul adatai.
 // Szinkronhoz minden táblában: uuid (eszközök között egyedi azonosító), updated_at
 // (utolsó módosítás, ms) és deleted (törlés csak megjelöléssel, hogy a többi eszköz is értesüljön).
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "kettler.db", null, 3) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "kettler.db", null, 4) {
 
     override fun onConfigure(db: SQLiteDatabase) {
         db.setForeignKeyConstraintsEnabled(true)
@@ -102,7 +102,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
                 max_hr INTEGER)""",
         )
         db.execSQL("CREATE INDEX workouts_profile ON workouts(profile_id, started_at)")
-        onUpgrade(db, 1, 3)
+        onUpgrade(db, 1, 4)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -185,6 +185,8 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
             db.execSQL("CREATE INDEX workout_sets_workout ON workout_sets(workout_id)")
             Catalog.seed(db)
         }
+        // 4. verzió: egységes gyakorlatrajzok (a hiányzók pótlása, két gyakorlat új neve)
+        if (oldVersion < 4) Catalog.upgradeTo4(db)
     }
 
     // ---- Profilok ----

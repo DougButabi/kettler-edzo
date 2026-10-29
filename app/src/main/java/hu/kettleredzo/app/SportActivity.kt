@@ -35,7 +35,7 @@ class SportActivity : KettlerActivity() {
         val tiles = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         tiles.addView(tile("res:trener", Sport.ELLIPTICAL.title, "Kettler Vito XL") { openElliptical() }, ui.lp(0, MATCH_PARENT, 1f))
         tiles.addView(
-            tile("res:wger_bench_press", Sport.WEIGHTS.title, liftCaption(profile.id)) { openWeights() },
+            tile("res:sulyzos", Sport.WEIGHTS.title, liftCaption(profile.id)) { openWeights() },
             ui.lp(0, MATCH_PARENT, 1f).apply { leftMargin = ui.ipx(40) },
         )
         root.addView(tiles, ui.lp(MATCH_PARENT, 0, 1f).apply { topMargin = ui.ipx(50) })

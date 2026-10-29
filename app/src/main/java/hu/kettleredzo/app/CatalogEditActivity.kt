@@ -130,7 +130,7 @@ class CatalogEditActivity : KettlerActivity() {
         })
         form.addView(buttons, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
         if (isExercise) {
-            form.addView(ui.note("A beépített rajzok a wger.de nyílt adatbázisából valók (CC-BY-SA). Saját fotóra bármikor lecserélheted."),
+            form.addView(ui.note("A beépített rajzok az Everkinetic nyílt gyűjteményéből valók (CC-BY-SA). Saját fotóra bármikor lecserélheted."),
                 ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(36) })
         }
         return ScrollView(this).apply { addView(form) }

@@ -3,7 +3,10 @@ package hu.kettleredzo.app
 import android.app.Activity
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
@@ -162,6 +165,40 @@ class Ui(private val ctx: Context) {
     }
 
     fun toast(msg: String) = Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+
+    // Teljes képernyős háttérfotó (edzésképernyők). A fotót a magasságra méretezzük úgy, hogy a
+    // tárgy (a kép left..right pixelei közötti rész) a bal félbe essen. A jobb oldalt a fotó utolsó
+    // oszlopának kinyújtásával töltjük ki, így nem látszik illesztés. A root háttere a fotó sarokszíne.
+    fun photoArea(root: View, res: Int, left: Float, right: Float): View {
+        val bmp = BitmapFactory.decodeResource(ctx.resources, res)
+        root.setBackgroundColor(bmp.getPixel(bmp.width - 1, 0))
+        val strip = ImageView(ctx).apply {
+            setImageBitmap(Bitmap.createBitmap(bmp, bmp.width - 2, 0, 1, bmp.height))
+            scaleType = ImageView.ScaleType.MATRIX
+        }
+        val photo = ImageView(ctx).apply {
+            setImageBitmap(bmp)
+            scaleType = ImageView.ScaleType.MATRIX
+        }
+        val area = FrameLayout(ctx)
+        area.addView(strip, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        area.addView(photo, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        area.addOnLayoutChangeListener { _, l, t, r, b, _, _, _, _ ->
+            val w = r - l
+            val h = b - t
+            val s = min(h / bmp.height.toFloat(), w * 0.5f / (right - left))
+            val dy = h - bmp.height * s
+            photo.imageMatrix = Matrix().apply {
+                setScale(s, s)
+                postTranslate(-left * s + px(20), dy)
+            }
+            strip.imageMatrix = Matrix().apply {
+                setScale(w.toFloat(), s)
+                postTranslate(0f, dy)
+            }
+        }
+        return area
+    }
 
     // Több soros, halvány magyarázó szöveg
     fun note(s: String, lines: Int = 4) = text(s, 22, MUTED, regular).apply {

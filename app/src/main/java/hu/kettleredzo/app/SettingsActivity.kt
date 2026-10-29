@@ -217,7 +217,7 @@ class SettingsActivity : KettlerActivity() {
         pane.addView(note("Kettler Vito XL elliptikus trénerhez és súlyzós edzéshez. Az edzésnapló csak ezen az eszközön tárolódik."), ui.fieldLp())
         pane.addView(ui.label("GYAKORLATRAJZOK"), sectionLp())
         pane.addView(ui.note(
-            "A beépített gyakorlatrajzok forrása a wger.de nyílt adatbázisa. Szerzők: " +
+            "A beépített gyakorlatrajzok forrása az Everkinetic nyílt gyűjteménye (everkinetic.com, részben a wger.de-n át). Szerző: " +
                 Catalog.IMAGE_CREDITS.joinToString("; ") + ". Licenc: Creative Commons Nevezd meg! – Így add tovább!",
             6,
         ), ui.fieldLp())

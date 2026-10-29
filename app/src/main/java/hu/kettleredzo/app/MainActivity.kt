@@ -305,40 +305,11 @@ class MainActivity : KettlerActivity() {
         return root
     }
 
-    // A fotót a magasságra méretezzük úgy, hogy a gép a bal félbe essen. A jobb oldalt
-    // a fotó utolsó oszlopának kinyújtásával töltjük ki, így nem látszik illesztés.
     private fun buildPhoto(root: FrameLayout): View {
         // Férfi profilnál férfi, egyébként női fotó (a két kép kompozíciója azonos)
         photoSex = profile.sex
         val res = if (profile.sex == Sex.MALE) R.drawable.trener_ferfi else R.drawable.trener
-        val bmp = BitmapFactory.decodeResource(resources, res)
-        root.setBackgroundColor(bmp.getPixel(bmp.width - 1, 0))
-        val strip = ImageView(this).apply {
-            setImageBitmap(Bitmap.createBitmap(bmp, bmp.width - 2, 0, 1, bmp.height))
-            scaleType = ImageView.ScaleType.MATRIX
-        }
-        val photo = ImageView(this).apply {
-            setImageBitmap(bmp)
-            scaleType = ImageView.ScaleType.MATRIX
-        }
-        val area = FrameLayout(this)
-        area.addView(strip, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        area.addView(photo, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        area.addOnLayoutChangeListener { _, l, t, r, b, _, _, _, _ ->
-            val w = r - l
-            val h = b - t
-            val s = min(h / bmp.height.toFloat(), w * 0.5f / (MACHINE_RIGHT - MACHINE_LEFT))
-            val dy = h - bmp.height * s
-            photo.imageMatrix = Matrix().apply {
-                setScale(s, s)
-                postTranslate(-MACHINE_LEFT * s + ui.px(20), dy)
-            }
-            strip.imageMatrix = Matrix().apply {
-                setScale(w.toFloat(), s)
-                postTranslate(0f, dy)
-            }
-        }
-        return area
+        return ui.photoArea(root, res, MACHINE_LEFT, MACHINE_RIGHT)
     }
 
     private fun buildTopBar(): View {

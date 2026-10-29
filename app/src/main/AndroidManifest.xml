@@ -64,6 +64,11 @@
             android:screenOrientation="sensorLandscape" />
 
         <activity
+            android:name=".WeightsMenuActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
+
+        <activity
             android:name=".PlanDayActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape" />

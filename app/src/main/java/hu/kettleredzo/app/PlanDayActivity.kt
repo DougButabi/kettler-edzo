@@ -211,7 +211,7 @@ class PlanDayActivity : KettlerActivity() {
             row.addView(col, ui.lp(0, WRAP_CONTENT, 1f).apply { leftMargin = ui.ipx(20) })
             pane.addView(row, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(12) })
         }
-        pane.addView(ui.note("Új gyakorlatot a Súlyzós edzés → Gyakorlatok menüben vehetsz fel."), ui.lp(MATCH_PARENT, WRAP_CONTENT).apply {
+        pane.addView(ui.note("Új gyakorlatot a MENÜ → Gyakorlatok alatt vehetsz fel."), ui.lp(MATCH_PARENT, WRAP_CONTENT).apply {
             topMargin = ui.ipx(24)
         })
         scroll.post { scroll.scrollTo(0, 0) }

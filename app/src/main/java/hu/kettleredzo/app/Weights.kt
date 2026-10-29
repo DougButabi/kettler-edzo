@@ -93,6 +93,15 @@ object Lifting {
     }
 }
 
+// A sorozatok röviden, az egymás utáni egyformákat összevonva: "1 × 8 × 15 kg, 3 × 8 × 40 kg"
+fun setsText(sets: List<PlannedSet>): String {
+    val groups = mutableListOf<Pair<PlannedSet, Int>>()
+    for (s in sets) {
+        if (groups.lastOrNull()?.first == s) groups[groups.size - 1] = s to groups.last().second + 1 else groups += s to 1
+    }
+    return groups.joinToString(", ") { (s, n) -> "$n × ${s.reps} × ${kgText(s.kg)} kg" }
+}
+
 fun kgText(kg: Double) = if (kg % 1.0 == 0.0) kg.toLong().toString() else formatNum(kg, if (kg * 10 % 1.0 == 0.0) 1 else 2)
 
 // ---- Alapadatok: a felhasználó gépei, a hozzájuk illő gyakorlatok és kész tervek ----
@@ -120,18 +129,41 @@ object Catalog {
         SeedExercise("shoulder_press", "Vállból nyomás kézi súlyzóval", "dumbbell", "wger_shoulder_press"),
         SeedExercise("lateral_raise", "Oldalemelés", "dumbbell", "wger_lateral_raise"),
         SeedExercise("db_row", "Egykezes evezés", "dumbbell", "wger_db_row"),
-        SeedExercise("triceps_overhead", "Tricepsznyújtás fej fölött", "dumbbell", null),
+        SeedExercise("triceps_overhead", "Tricepsznyújtás fej fölött", "dumbbell", "wger_triceps_overhead"),
         SeedExercise("shrug", "Vállvonogatás", "dumbbell", "wger_shrug"),
-        SeedExercise("goblet_squat", "Serleges guggolás", "dumbbell", null),
+        SeedExercise("goblet_squat", "Guggolás kézi súlyzóval", "dumbbell", "wger_dumbbell_squat"),
         SeedExercise("lunge", "Kitörés kézi súlyzóval", "dumbbell", "wger_lunge"),
-        SeedExercise("romanian_deadlift", "Román felhúzás kézi súlyzóval", "dumbbell", null),
+        SeedExercise("romanian_deadlift", "Román felhúzás", "dumbbell", "wger_romanian_deadlift"),
     )
 
-    // A Névjegyben feltüntetett szerzők (a rajzok CC-BY-SA licencűek, forrás: wger.de)
-    val IMAGE_CREDITS = listOf(
-        "Everkinetic (CC-BY-SA 3.0)",
-        "Franpol, cshep442 és a wger.de közössége (CC-BY-SA 4.0)",
+    // 0.6-ban ezek még más néven / kép nélkül kerültek be; a 4. adatbázis-verzió frissíti őket,
+    // ha a felhasználó közben nem írta át.
+    val RENAMED = mapOf(
+        "goblet_squat" to "Serleges guggolás",
+        "romanian_deadlift" to "Román felhúzás kézi súlyzóval",
     )
+
+    // A Névjegyben feltüntetett szerző (a rajzok CC-BY-SA licencűek, forrás: everkinetic.com, wger.de)
+    val IMAGE_CREDITS = listOf("Everkinetic (CC-BY-SA 3.0 és 4.0)")
+
+    // 4. adatbázis-verzió: a kép nélküli beépített gyakorlatok képet kapnak, a régi nevek frissülnek.
+    fun upgradeTo4(db: SQLiteDatabase) {
+        val now = System.currentTimeMillis()
+        for (e in EXERCISES) {
+            if (e.image != null) {
+                db.execSQL(
+                    "UPDATE exercises SET image = ?, updated_at = ? WHERE seed_key = ? AND image IS NULL",
+                    arrayOf("res:${e.image}", now, e.key),
+                )
+            }
+            RENAMED[e.key]?.let { old ->
+                db.execSQL(
+                    "UPDATE exercises SET name = ?, updated_at = ? WHERE seed_key = ? AND name = ?",
+                    arrayOf(e.name, now, e.key, old),
+                )
+            }
+        }
+    }
 
     // A beépített elem eredeti képe (ha a felhasználó lecserélte, ezzel állítható vissza)
     fun defaultEquipmentImage(seedKey: String?) = EQUIPMENT.firstOrNull { it.first == seedKey }?.let { "res:${it.third}" }

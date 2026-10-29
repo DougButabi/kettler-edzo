@@ -3,34 +3,36 @@ package hu.kettleredzo.app
 import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import java.text.SimpleDateFormat
-import java.util.Date
 
-// A súlyzós modul kezdőképernyője: bal oldalt a menü, jobb oldalt a kiválasztott rész
-// (edzés indítása, edzésterv, gyakorlatok, gépek).
+// A súlyzós edzés kezdőképernyője, az elliptikus edzésképernyő mintájára: bal oldalt a fotó,
+// jobb oldalt a kiválasztott nap gyakorlatai és sorozatai, alul a napválasztó és az Indítás.
+// Az edzésterv, a gyakorlatok és a gépek a MENÜ gombról érhetők el.
 class WeightsActivity : KettlerActivity() {
-    private enum class Section(val title: String) {
-        WORKOUT("Edzés"),
-        PLAN("Edzésterv"),
-        EXERCISES("Gyakorlatok"),
-        EQUIPMENT("Gépek"),
-    }
-
     private lateinit var ui: Ui
     private lateinit var profile: Profile
-    private lateinit var pane: LinearLayout
-    private val navButtons = mutableMapOf<Section, TextView>()
-    private var section = Section.WORKOUT
+    private var days = emptyList<PlanDay>()
+    private var active: Workout? = null
+    private var selectedDayId = -1L
+    private var recommendedId = -1L
 
-    private val timeFormat = SimpleDateFormat("MM. dd. HH:mm", HU)
+    private lateinit var nameV: TextView
+    private lateinit var headV: TextView
+    private lateinit var titleV: TextView
+    private lateinit var list: LinearLayout
+    private lateinit var dayRow: LinearLayout
+    private lateinit var statusV: TextView
+    private lateinit var discardBtn: View
+    private lateinit var mainBtn: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,90 +43,19 @@ class WeightsActivity : KettlerActivity() {
         }
         profile = p
         ui = Ui(this)
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(BG)
-        }
-        val left = ui.sidePanel("Súlyzós\nedzés")
-        left.addView(ui.text(profile.name, 26, MUTED, ui.medium), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
-            topMargin = ui.ipx(14)
-        })
-        for (s in Section.entries) {
-            val b = ui.choice(s.title) { show(s) }
-            navButtons[s] = b
-            left.addView(b, ui.lp(MATCH_PARENT, ui.ipx(78)).apply { topMargin = ui.ipx(if (s.ordinal == 0) 30 else 14) })
-        }
-        left.addView(View(this), ui.lp(MATCH_PARENT, 0, 1f))
-        left.addView(ui.button("← Vissza", PILL, INK) { finish() }, ui.lp(MATCH_PARENT, ui.ipx(78)))
-        root.addView(left, ui.lp(0, MATCH_PARENT, 0.34f))
-
-        pane = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(ui.ipx(40), ui.ipx(120), ui.ipx(60), ui.ipx(60))
-        }
-        root.addView(ScrollView(this).apply { addView(pane) }, ui.lp(0, MATCH_PARENT, 0.66f))
-        setContentView(root)
+        setContentView(buildUi())
     }
 
     override fun onResume() {
         super.onResume()
-        if (::ui.isInitialized) show(section) // a szerkesztő képernyőkről visszatérve frissül
-    }
-
-    private fun show(s: Section) {
-        section = s
-        navButtons.forEach { (k, v) -> ui.setChosen(v, k == s) }
-        pane.removeAllViews()
-        when (s) {
-            Section.WORKOUT -> buildWorkout()
-            Section.PLAN -> buildPlan()
-            Section.EXERCISES -> buildExercises()
-            Section.EQUIPMENT -> buildEquipment()
-        }
-    }
-
-    // ---- Edzés ----
-
-    private fun buildWorkout() {
+        if (!::ui.isInitialized) return
+        // A menüből vagy edzésből visszatérve a terv és az állapot megváltozhatott.
         val db = Db.get(this)
-        val active = db.activeLift(profile.id)
-        if (active != null) {
-            pane.addView(ui.label("FOLYAMATBAN LÉVŐ EDZÉS"))
-            val card = card()
-            card.addView(ui.text("${active.title ?: "?"} nap", 40, INK, ui.bold))
-            val s = db.liftSummary(active.id)
-            card.addView(
-                ui.text("Indítva: ${timeFormat.format(Date(active.startedAt))}   ·   ${s.doneSets}/${s.totalSets} sorozat kész", 22, MUTED, ui.regular),
-                ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) },
-            )
-            pane.addView(card, ui.fieldLp())
-            val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            buttons.addView(ui.button("Elvetés", DANGER, Color.WHITE) { confirmDiscard(active.id) }, ui.lp(ui.ipx(220), ui.ipx(85)))
-            buttons.addView(View(this), ui.lp(0, 1, 1f))
-            buttons.addView(ui.button("Folytatás", BAR, Color.WHITE) { openLift(active.id) }, ui.lp(ui.ipx(300), ui.ipx(85)))
-            pane.addView(buttons, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(20) })
-            pane.addView(ui.note("Új edzést akkor indíthatsz, ha ezt befejezted vagy elvetetted."), sectionLp())
-            return
-        }
-
-        val days = db.planDays(profile.id)
-        if (days.isEmpty()) {
-            pane.addView(ui.label("MÉG NINCS EDZÉSTERVED"))
-            pane.addView(ui.note("Készíts egyet, vagy indulj egy kész tervből. Utána itt választod ki, melyik napot edzed."), ui.fieldLp())
-            pane.addView(ui.button("Edzésterv készítése", BAR, Color.WHITE) { show(Section.PLAN) },
-                ui.lp(ui.ipx(380), ui.ipx(85)).apply { topMargin = ui.ipx(24) })
-            return
-        }
-
-        pane.addView(ui.label("MELYIK NAPOT EDZED?"))
-        val recommended = recommendedDay(days, db.lastLiftLetter(profile.id))
-        for (d in days) {
-            val card = dayCard(d, d.id == recommended?.id)
-            card.setOnClickListener { startLift(d) }
-            pane.addView(card, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(16) })
-        }
-        pane.addView(ui.note("Koppints a napra az edzés indításához. Az ajánlott nap a legutóbbi utáni."), sectionLp())
+        days = db.planDays(profile.id)
+        active = db.activeLift(profile.id)
+        recommendedId = recommendedDay(days, db.lastLiftLetter(profile.id))?.id ?: -1
+        if (days.none { it.id == selectedDayId }) selectedDayId = recommendedId
+        render()
     }
 
     // A legutóbb edzett nap utáni nap, körbeérve; ha még nem volt edzés, az első.
@@ -133,9 +64,120 @@ class WeightsActivity : KettlerActivity() {
         return if (i < 0) days.firstOrNull() else days[(i + 1) % days.size]
     }
 
-    private fun startLift(day: PlanDay) {
+    // ---- Kirajzolás ----
+
+    private fun render() {
+        list.removeAllViews()
+        val a = active
+        if (a != null) renderActive(a) else renderPlan()
+        renderDays()
+    }
+
+    private fun renderPlan() {
+        val day = days.firstOrNull { it.id == selectedDayId }
+        discardBtn.visibility = View.GONE
+        mainButton("Indítás")
+        if (day == null) {
+            headV.text = "MÉG NINCS EDZÉSTERVED"
+            titleV.text = "Kezdjük!"
+            list.addView(ui.note("A MENÜ gombbal készíthetsz edzéstervet, vagy betölthetsz egy kész tervet."), lineLp())
+            statusV.text = ""
+            return
+        }
+        headV.text = if (day.id == recommendedId) "${day.letter} NAP   ·   AJÁNLOTT" else "${day.letter} NAP"
+        val sets = day.items.sumOf { it.sets.size }
+        titleV.text = "${day.items.size} gyakorlat · $sets sorozat"
+        if (day.items.isEmpty()) list.addView(ui.note("Ebben a napban még nincs gyakorlat. A MENÜ → Edzésterv alatt adhatsz hozzá."), lineLp())
+        val db = Db.get(this)
+        day.items.forEachIndexed { i, item ->
+            val ex = db.exercise(item.exerciseId)
+            list.addView(exerciseRow(i, ex, setsText(item.sets) + "   ·   pihenő ${item.restSec} mp", null), lineLp())
+        }
+        statusV.text = ""
+    }
+
+    // Folyamatban lévő edzés: a sorozatok állása gyakorlatonként, Folytatás / Elvetés
+    private fun renderActive(a: Workout) {
+        val db = Db.get(this)
+        val sets = db.liftSets(a.id)
+        headV.text = "${a.title ?: "?"} NAP   ·   FOLYAMATBAN"
+        titleV.text = "${sets.count { it.done }}/${sets.size} sorozat kész"
+        for ((i, s) in sets.groupBy { it.itemPos }.toSortedMap().values.withIndex()) {
+            val ex = db.exercise(s.first().exerciseId)
+            val done = s.count { it.done }
+            val text = s.joinToString(", ") { "${it.reps} × ${kgText(it.kg)} kg" }
+            list.addView(exerciseRow(i, ex, text, if (done == s.size) "✓" else "$done/${s.size}"), lineLp())
+        }
+        discardBtn.visibility = View.VISIBLE
+        mainButton("Folytatás")
+        statusV.text = "Edzés közben nem lehet napot váltani."
+    }
+
+    private fun exerciseRow(index: Int, ex: Exercise?, details: String, badge: String?): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        row.addView(ui.picture(ex?.image, ex?.name ?: "?", 84))
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(ui.text("${index + 1}. ${ex?.name ?: "?"}", 28, INK, ui.bold))
+        col.addView(ui.text(details, 19, MUTED, ui.regular), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(6) })
+        row.addView(col, ui.lp(0, WRAP_CONTENT, 1f).apply { leftMargin = ui.ipx(22) })
+        if (badge != null) {
+            row.addView(ui.text(badge, 22, INK, ui.bold).apply {
+                gravity = Gravity.CENTER
+                background = ui.rounded(if (badge == "✓") GREEN else PILL, 24)
+                setPadding(ui.ipx(18), ui.ipx(8), ui.ipx(18), ui.ipx(8))
+            })
+        }
+        return row
+    }
+
+    // Alsó sáv: a terv napjai (A, B, C…) kerek gombokként; edzés közben csak az aktuális nap látszik.
+    private fun renderDays() {
+        dayRow.removeAllViews()
+        val a = active
+        val shown = if (a != null) days.filter { it.letter == a.title } else days
+        for (d in shown) {
+            val chosen = if (a != null) true else d.id == selectedDayId
+            val b = ui.text(d.letter, 34, if (chosen) INK else Color.WHITE, ui.bold).apply {
+                gravity = Gravity.CENTER
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(if (chosen) YELLOW else BAR_LINE)
+                }
+                setOnClickListener {
+                    if (active == null) {
+                        selectedDayId = d.id
+                        render()
+                    }
+                }
+            }
+            dayRow.addView(b, ui.lp(ui.ipx(72), ui.ipx(72)).apply { rightMargin = ui.ipx(14) })
+        }
+    }
+
+    private fun mainButton(text: String) {
+        (mainBtn.getChildAt(1) as TextView).text = text
+    }
+
+    private fun lineLp() = ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = ui.ipx(18) }
+
+    // ---- Gombok ----
+
+    private fun onMainButton() {
+        val a = active
+        if (a != null) {
+            openLift(a.id)
+            return
+        }
+        val day = days.firstOrNull { it.id == selectedDayId }
+        if (day == null) {
+            openMenu()
+            return
+        }
         if (day.items.isEmpty()) {
-            ui.toast("Ebben a napban még nincs gyakorlat. Az Edzéstervben adhatsz hozzá.")
+            ui.toast("Ebben a napban még nincs gyakorlat. A MENÜ → Edzésterv alatt adhatsz hozzá.")
             return
         }
         openLift(Db.get(this).startLift(profile.id, day))
@@ -145,169 +187,129 @@ class WeightsActivity : KettlerActivity() {
         startActivity(Intent(this, LiftActivity::class.java).putExtra(LiftActivity.EXTRA_WORKOUT_ID, workoutId))
     }
 
-    private fun confirmDiscard(workoutId: Long) {
+    private fun openMenu() {
+        startActivity(Intent(this, WeightsMenuActivity::class.java))
+    }
+
+    private fun confirmDiscard() {
+        val a = active ?: return
         AlertDialog.Builder(this)
             .setTitle("Elveted a folyamatban lévő edzést?")
             .setMessage("Nem kerül be a naplóba.")
             .setPositiveButton("Elvetés") { _, _ ->
-                Db.get(this).discardLift(workoutId)
-                show(section)
+                Db.get(this).discardLift(a.id)
+                active = null
+                render()
             }
             .setNegativeButton("Mégse", null)
             .show()
     }
 
-    // ---- Edzésterv ----
-
-    private fun buildPlan() {
-        val db = Db.get(this)
-        val days = db.planDays(profile.id)
-        if (days.isNotEmpty()) {
-            pane.addView(ui.label("${profile.name.uppercase()} EDZÉSTERVE"))
-            for (d in days) {
-                val card = dayCard(d, false)
-                card.setOnClickListener { editDay(d.id) }
-                pane.addView(card, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(16) })
-            }
-            pane.addView(ui.button("+ Új nap (${Lifting.nextLetter(days)})", BAR, Color.WHITE) { addDay(days) },
-                ui.lp(ui.ipx(320), ui.ipx(85)).apply { topMargin = ui.ipx(24) })
-            pane.addView(ui.note("Koppints egy napra a gyakorlatok, sorozatok és súlyok szerkesztéséhez."), ui.fieldLp())
-            pane.addView(ui.label("KÉSZ TERV BETÖLTÉSE"), sectionLp())
-            pane.addView(ui.note("A mostani tervedet lecseréli. A naplóban lévő edzések megmaradnak."), ui.fieldLp())
-        } else {
-            pane.addView(ui.label("KÉSZ TERVEK"))
-            pane.addView(ui.note("Válassz egyet kiindulásnak, utána mindent átírhatsz. A súlyok csak becslések, állítsd őket magadra."), ui.fieldLp())
-        }
-        for (t in Catalog.TEMPLATES) {
-            val card = card()
-            card.addView(ui.text(t.title, 32, INK, ui.bold))
-            card.addView(ui.note(t.description, 2), ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
-            card.setOnClickListener { useTemplate(t, days.isNotEmpty()) }
-            pane.addView(card, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(16) })
-        }
-        if (days.isEmpty()) {
-            pane.addView(ui.button("Üres terv (A nap)", PILL, INK) { addDay(days) },
-                ui.lp(ui.ipx(340), ui.ipx(85)).apply { topMargin = ui.ipx(24) })
-        }
+    private fun openProfiles() {
+        startActivity(Intent(this, ProfileActivity::class.java))
+        finishAffinity()
     }
 
-    private fun useTemplate(t: Catalog.Template, replace: Boolean) {
-        val load = {
-            Catalog.applyTemplate(this, profile.id, t)
-            ui.toast("Betöltve: ${t.title}")
-            show(section)
-        }
-        if (!replace) {
-            load()
-            return
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Lecseréled az edzéstervet?")
-            .setMessage("A mostani terv helyére ez kerül: ${t.title}.")
-            .setPositiveButton("Csere") { _, _ -> load() }
-            .setNegativeButton("Mégse", null)
-            .show()
-    }
+    // ---- Felület felépítése ----
 
-    private fun addDay(days: List<PlanDay>) {
-        val id = Db.get(this).savePlanDay(PlanDay(0, profile.id, Lifting.nextLetter(days), (days.maxOfOrNull { it.position } ?: -1) + 1))
-        editDay(id)
-    }
-
-    private fun editDay(id: Long) {
-        startActivity(Intent(this, PlanDayActivity::class.java).putExtra(PlanDayActivity.EXTRA_DAY_ID, id))
-    }
-
-    // Egy nap kártyája: nagy betű, a gyakorlatok neve és a sorozatok száma
-    private fun dayCard(d: PlanDay, recommended: Boolean): LinearLayout {
-        val db = Db.get(this)
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = ui.rounded(CARD, 24)
-            setPadding(ui.ipx(28), ui.ipx(18), ui.ipx(28), ui.ipx(18))
-        }
-        card.addView(ui.text(d.letter, 72, INK, ui.bold).apply {
-            gravity = Gravity.CENTER
-            minWidth = ui.ipx(90)
+    private fun buildUi(): View {
+        val root = FrameLayout(this)
+        root.addView(ui.photoArea(root, R.drawable.sulyzos, PHOTO_LEFT, PHOTO_RIGHT), FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT).apply {
+            bottomMargin = ui.ipx(BAR_H)
         })
-        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val head = LinearLayout(this).apply {
+        root.addView(buildTopBar(), FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, Gravity.TOP))
+
+        val content = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        content.addView(View(this), ui.lp(0, MATCH_PARENT, 0.525f))
+        content.addView(buildPanel(), ui.lp(0, MATCH_PARENT, 0.475f))
+        root.addView(content, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT).apply {
+            bottomMargin = ui.ipx(BAR_H)
+        })
+
+        root.addView(buildBottomBar(), FrameLayout.LayoutParams(MATCH_PARENT, ui.ipx(BAR_H), Gravity.BOTTOM))
+        return root
+    }
+
+    private fun buildTopBar(): View {
+        val bar = FrameLayout(this).apply { setPadding(ui.ipx(35), ui.ipx(22), ui.ipx(28), 0) }
+
+        val logo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        logo.addView(ui.text("KETTLER", 32, INK, ui.light, 0.35f))
+        logo.addView(ui.text("SÚLYZÓS EDZÉS", 13, MUTED, ui.medium, 0.25f).apply {
+            setPadding(0, ui.ipx(8), 0, 0)
+        })
+        // A profil neve nagyban; koppintásra profilváltás
+        nameV = ui.text(profile.name, 46, INK, ui.bold).apply {
+            setPadding(0, ui.ipx(18), 0, ui.ipx(6))
+            setOnClickListener { openProfiles() }
+        }
+        logo.addView(nameV)
+        bar.addView(logo, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.START))
+
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        buttons.addView(ui.pill("NAPLÓ") { startActivity(Intent(this, LogActivity::class.java)) })
+        buttons.addView(ui.pill("MENÜ") { openMenu() }, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(14) })
+        bar.addView(buttons, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.END))
+        return bar
+    }
+
+    private fun buildPanel(): View {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, ui.ipx(115), ui.ipx(45), ui.ipx(20))
+        }
+        headV = ui.label("")
+        panel.addView(headV)
+        titleV = ui.text("", 56, INK, ui.bold)
+        panel.addView(titleV, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(10) })
+        panel.addView(ui.line(), ui.lp(MATCH_PARENT, 1).apply {
+            topMargin = ui.ipx(20)
+            bottomMargin = ui.ipx(20)
+        })
+        list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        panel.addView(ScrollView(this).apply { addView(list) }, ui.lp(MATCH_PARENT, 0, 1f))
+        return panel
+    }
+
+    private fun buildBottomBar(): View {
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setBackgroundColor(BAR)
+            setPadding(ui.ipx(50), 0, ui.ipx(30), 0)
+        }
+        val dayCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        dayCol.addView(ui.text("NAP", 17, BAR_MUTED, ui.medium, 0.12f).apply {
+            ellipsize = null
+            setPadding(0, 0, ui.ipx(10), 0)
+        })
+        dayRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        val sets = d.items.sumOf { it.sets.size }
-        head.addView(ui.text("${d.items.size} gyakorlat · $sets sorozat", 26, INK, ui.bold))
-        if (recommended) {
-            head.addView(ui.text("AJÁNLOTT", 15, INK, ui.medium, 0.1f).apply {
-                background = ui.rounded(YELLOW, 20)
-                setPadding(ui.ipx(16), ui.ipx(6), ui.ipx(16), ui.ipx(6))
-            }, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(20) })
-        }
-        col.addView(head)
-        val names = d.items.mapNotNull { db.exercise(it.exerciseId)?.name }
-        col.addView(ui.note(names.joinToString(" · ").ifEmpty { "Még nincs gyakorlat." }, 2),
-            ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
-        card.addView(col, ui.lp(0, WRAP_CONTENT, 1f).apply { leftMargin = ui.ipx(20) })
-        return card
+        dayCol.addView(dayRow, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(6) })
+        bar.addView(dayCol)
+
+        statusV = ui.text("", 20, BAR_MUTED, ui.medium).apply { gravity = Gravity.END }
+        bar.addView(statusV, ui.lp(0, WRAP_CONTENT, 1f).apply {
+            leftMargin = ui.ipx(30)
+            rightMargin = ui.ipx(30)
+        })
+
+        val discard = ui.pillButton(R.drawable.ic_stop, "Elvetés", BAR_LINE, Color.WHITE) { confirmDiscard() }
+        discardBtn = discard
+        bar.addView(discard, ui.lp(ui.ipx(250), ui.ipx(85)).apply { rightMargin = ui.ipx(20) })
+
+        mainBtn = ui.pillButton(R.drawable.ic_play, "Indítás", BUTTON, INK) { onMainButton() }
+        bar.addView(mainBtn, ui.lp(ui.ipx(290), ui.ipx(85)))
+        return bar
     }
 
-    // ---- Gyakorlatok és gépek ----
+    companion object {
+        private const val BAR_H = 145
 
-    private fun buildExercises() {
-        val db = Db.get(this)
-        pane.addView(ui.label("GYAKORLATOK"))
-        pane.addView(ui.button("+ Új gyakorlat", BAR, Color.WHITE) { editCatalog(CatalogEditActivity.KIND_EXERCISE, null) },
-            ui.lp(ui.ipx(320), ui.ipx(85)).apply { topMargin = ui.ipx(16) })
-        for (e in db.exercises()) {
-            val eq = e.equipmentId?.let { db.equipment(it)?.name } ?: "Gép nélkül"
-            pane.addView(catalogRow(e.image, e.name, eq) { editCatalog(CatalogEditActivity.KIND_EXERCISE, e.id) },
-                ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(14) })
-        }
+        // A súlyzós fotón a pad és az állvány vízszintes helye (a kép pixeleiben)
+        private const val PHOTO_LEFT = 60f
+        private const val PHOTO_RIGHT = 980f
     }
-
-    private fun buildEquipment() {
-        val db = Db.get(this)
-        val exercises = db.exercises()
-        pane.addView(ui.label("GÉPEK ÉS ESZKÖZÖK"))
-        pane.addView(ui.button("+ Új gép", BAR, Color.WHITE) { editCatalog(CatalogEditActivity.KIND_EQUIPMENT, null) },
-            ui.lp(ui.ipx(320), ui.ipx(85)).apply { topMargin = ui.ipx(16) })
-        for (e in db.equipmentList()) {
-            val count = exercises.count { it.equipmentId == e.id }
-            pane.addView(catalogRow(e.image, e.name, "$count gyakorlat") { editCatalog(CatalogEditActivity.KIND_EQUIPMENT, e.id) },
-                ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(14) })
-        }
-    }
-
-    private fun catalogRow(image: String?, name: String, caption: String, onClick: () -> Unit): View {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = ui.rounded(CARD, 24)
-            setPadding(ui.ipx(18), ui.ipx(14), ui.ipx(28), ui.ipx(14))
-            setOnClickListener { onClick() }
-        }
-        row.addView(ui.picture(image, name, 110))
-        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        col.addView(ui.text(name, 30, INK, ui.bold))
-        col.addView(ui.text(caption, 20, MUTED, ui.regular), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(6) })
-        row.addView(col, ui.lp(0, WRAP_CONTENT, 1f).apply { leftMargin = ui.ipx(24) })
-        return row
-    }
-
-    private fun editCatalog(kind: String, id: Long?) {
-        val intent = Intent(this, CatalogEditActivity::class.java).putExtra(CatalogEditActivity.EXTRA_KIND, kind)
-        if (id != null) intent.putExtra(CatalogEditActivity.EXTRA_ID, id)
-        startActivity(intent)
-    }
-
-    // ---- Építőkockák ----
-
-    private fun card() = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        background = ui.rounded(CARD, 24)
-        setPadding(ui.ipx(28), ui.ipx(18), ui.ipx(28), ui.ipx(18))
-    }
-
-    private fun sectionLp() = ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(40) }
 }
