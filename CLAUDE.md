@@ -19,7 +19,7 @@ Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig 
 
 ## Adatkapcsolat az ESP32-vel
 - ESPHome `web_server` (version 3), SSE: `http://<ip>/events`. Az ESP IP-je: 192.168.1.230.
-- Az ESP bontja a lassú SSE-klienst (logban: „Event source connection closed”), ezért: a yamlban `power_save_mode: none`, a fordulatszám/táv `throttle: 0.5s`, a szenzornapló INFO szinten; az app (`EspClient`) azonnal újrakapcsolódik, és csak 5 mp kiesés után jelez „Nincs kapcsolat”-ot.
+- Az ESP bontja a lassú SSE-klienst (logban: „Event source connection closed”), ezért: a yamlban `power_save_mode: none`, a fordulatszám/táv `throttle: 0.5s`, a szenzornapló INFO szinten; az app (`EspClient`) azonnal újrakapcsolódik, és csak 5 mp kiesés után jelez „Nincs kapcsolat”-ot. A `WorkoutService` wifi-zárolást tart (WAKE_LOCK), a Beállítások → Kapcsolat oldalon az utolsó 8 megszakadás látszik. 0.8.17-tel 5 perc tekerés alatt nem volt leszakadás (2026-10-29).
 - Az eseményazonosítók a szenzorok nevéből jönnek (UTF-8): `sensor/Fordulatszám`, `sensor/Sebesség`, `sensor/Táv` → **a szenzorokat nem szabad átnevezni**. A szám a `value` mezőben van.
 - A táv az ESP összesített értékéből jön, az app az edzés indításakor eltárolja és ahhoz képest számol (ESP-újraindulást is kezel).
 - Az app a címet a Beállítások → Kapcsolat oldalon kéri („Külső eszköz IP-címe”). A `.local` név Android 11-en valószínűleg nem oldódik fel, ezért IP kell.
