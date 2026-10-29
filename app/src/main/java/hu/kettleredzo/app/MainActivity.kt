@@ -439,7 +439,8 @@ class MainActivity : KettlerActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
         }
-        levelCol.addView(barLabel("ELLENÁLLÁS"))
+        // WRAP_CONTENT kell, különben az oszlop a gombsor szélességét kapja, és a felirat levágódik
+        levelCol.addView(barLabel("ELLENÁLLÁS"), ui.lp(WRAP_CONTENT, WRAP_CONTENT))
         val levelRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -462,7 +463,7 @@ class MainActivity : KettlerActivity() {
         // Fordulatszám
         bar.addView(ui.icon(R.drawable.ic_refresh, 44, Color.WHITE))
         val rpmCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        rpmCol.addView(barLabel("FORDULAT"))
+        rpmCol.addView(barLabel("FORDULAT"), ui.lp(WRAP_CONTENT, WRAP_CONTENT))
         val rpmRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         rpmV = ui.text("0", 50, Color.WHITE, ui.bold)
         rpmRow.addView(rpmV)

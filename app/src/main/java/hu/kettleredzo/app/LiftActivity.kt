@@ -105,7 +105,8 @@ class LiftActivity : KettlerActivity() {
 
         val left = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            if (portrait) setPadding(ui.ipx(35), ui.ipx(24), ui.ipx(35), ui.ipx(6)) else setPadding(ui.ipx(50), ui.ipx(40), ui.ipx(24), ui.ipx(40))
+            val e = ui.edge
+            if (portrait) setPadding(ui.ipx(35 + e), ui.ipx(24 + e), ui.ipx(35 + e), ui.ipx(6)) else setPadding(ui.ipx(50 + e), ui.ipx(40), ui.ipx(24), ui.ipx(40))
         }
         left.addView(ui.text("KETTLER", 32, INK, ui.light, 0.35f))
         left.addView(ui.text("${workout.title ?: ""} nap · ${profile.name}", 40, INK, ui.bold), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
@@ -137,7 +138,7 @@ class LiftActivity : KettlerActivity() {
 
         val right = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            if (portrait) setPadding(ui.ipx(35), ui.ipx(16), ui.ipx(35), ui.ipx(20)) else setPadding(ui.ipx(30), ui.ipx(40), ui.ipx(50), ui.ipx(30))
+            if (portrait) setPadding(ui.ipx(35), ui.ipx(16), ui.ipx(35), ui.ipx(20 + ui.edge)) else setPadding(ui.ipx(30), ui.ipx(40), ui.ipx(50 + ui.edge), ui.ipx(30))
         }
         // Pihenő-sáv: csak visszaszámlálás közben látszik
         restBox = LinearLayout(this).apply {
@@ -210,7 +211,7 @@ class LiftActivity : KettlerActivity() {
         col.addView(ui.text(ex?.name ?: "?", 44, INK, ui.bold).apply { maxLines = 2 },
             ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
         val eq = ex?.equipmentId?.let { Db.get(this).equipment(it)?.name }
-        col.addView(ui.text(listOfNotNull(eq, "pihenő ${s.first().restSec} mp").joinToString("   ·   "), 22, MUTED, ui.regular),
+        col.addView(ui.text(listOfNotNull(eq, "pihenő ${s.first().restSec} mp").joinToString("   ·   "), 22, MUTED, ui.regular).apply { maxLines = 2 },
             ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
         head.addView(col, ui.lp(0, WRAP_CONTENT, 1f).apply { leftMargin = ui.ipx(30) })
         pane.addView(head)
@@ -236,18 +237,28 @@ class LiftActivity : KettlerActivity() {
         // Állóban (telefon) keskenyebb mezők és rövidebb pipa
         val compact = ui.portrait
         row.addView(ui.text("${set.setPos + 1}.", 34, INK, ui.bold), ui.lp(ui.ipx(60), WRAP_CONTENT))
-        row.addView(ui.stepper(value("${set.reps} ism", if (compact) 100 else 130), { update(set.copy(reps = max(0, set.reps - 1))) }, {
+        val reps = ui.stepper(value("${set.reps} ism", if (compact) 150 else 130), { update(set.copy(reps = max(0, set.reps - 1))) }, {
             update(set.copy(reps = set.reps + 1))
-        }))
-        row.addView(ui.text("×", 30, MUTED, ui.regular), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
-            leftMargin = ui.ipx(14)
-            rightMargin = ui.ipx(14)
         })
-        row.addView(ui.stepper(value("${kgText(set.kg)} kg", if (compact) 110 else 140), {
+        val kg = ui.stepper(value("${kgText(set.kg)} kg", if (compact) 150 else 140), {
             update(set.copy(kg = max(0.0, set.kg - Lifting.kgStep(set.kg - 0.01))))
         }, {
             update(set.copy(kg = set.kg + Lifting.kgStep(set.kg)))
-        }))
+        })
+        if (compact) {
+            // Állóban a nagy betűkkel egy sorba nem fér: az ismétlés és a súly egymás alatt
+            val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            col.addView(reps)
+            col.addView(kg, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
+            row.addView(col)
+        } else {
+            row.addView(reps)
+            row.addView(ui.text("×", 30, MUTED, ui.regular), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
+                leftMargin = ui.ipx(14)
+                rightMargin = ui.ipx(14)
+            })
+            row.addView(kg)
+        }
         row.addView(View(this), ui.lp(0, 1, 1f))
         val check = ui.text(if (set.done && !compact) "✓ Kész" else "✓", 34, if (set.done) Color.WHITE else INK, ui.bold).apply {
             gravity = Gravity.CENTER

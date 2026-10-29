@@ -21,12 +21,12 @@ class BarChartView(context: Context, private val ui: Ui) : View(context) {
     }
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = MUTED
-        textSize = ui.px(16)
+        textSize = ui.textPx(16)
         textAlign = Paint.Align.CENTER
     }
     private val valuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = INK
-        textSize = ui.px(15)
+        textSize = ui.textPx(15)
         textAlign = Paint.Align.CENTER
         typeface = ui.bold
     }
@@ -36,8 +36,8 @@ class BarChartView(context: Context, private val ui: Ui) : View(context) {
         super.onDraw(canvas)
         val n = values.size
         if (n == 0) return
-        val labelH = ui.px(30)
-        val valueH = ui.px(24)
+        val labelH = ui.textPx(16) + ui.px(14)
+        val valueH = ui.textPx(15) + ui.px(9)
         val bottom = height - labelH
         val maxV = max(values.maxOrNull() ?: 0.0, 0.5)
         val slot = width.toFloat() / n

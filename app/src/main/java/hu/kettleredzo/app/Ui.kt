@@ -87,22 +87,29 @@ class Ui(private val ctx: Context) {
 
     private fun scaled(size: Number, k: Float) = size.toFloat().let { if (it >= BIG_TEXT) it else it * k }
 
+    // Saját rajzolású szövegek (pl. diagram) betűmérete pixelben, a telefonos nagyítással
+    fun textPx(size: Number) = px(scaled(size, textScale))
+
     fun text(s: String, size: Number, color: Int, face: Typeface = medium, spacing: Float = 0f) =
         scaledText(s, size, color, face, spacing, textScale)
 
     private fun scaledText(s: String, size: Number, color: Int, face: Typeface, spacing: Float, k: Float) =
         TextView(ctx).apply {
             text = s
+            val grown = k > 1f && size.toFloat() < BIG_TEXT
             setTextSize(TypedValue.COMPLEX_UNIT_PX, px(scaled(size, k)))
             setTextColor(color)
             typeface = if (k > 1f && textScale > 1f) bold else face
-            letterSpacing = spacing
+            // A nagyított feliratoknál a ritkítás nem fér el (pl. „ÁTLAGSEBESS…”); a KETTLER logó marad ritkított.
+            letterSpacing = if (grown && spacing < 0.3f) spacing * 0.3f else spacing
             includeFontPadding = false
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
         }
 
-    fun label(s: String, color: Int = INK) = text(s, 20, color, medium, 0.12f)
+    fun label(s: String, color: Int = INK) = text(s, 20, color, medium, 0.12f).apply {
+        if (phonePortrait) maxLines = 2
+    }
 
     // Nagy szám, ami szükség esetén magától kisebb lesz, hogy kiférjen (pl. 1:05:12).
     fun bigValue(size: Number) = text("0", size, INK, bold).apply {
@@ -268,6 +275,7 @@ class Ui(private val ctx: Context) {
         // A betűköz miatt az Android kevesebb helyet mérne, és levágná („‹ ELLIPTI…”), lásd barLabel.
         head.addView(text("‹ $subtitle", 13, MUTED, medium, 0.25f).apply {
             ellipsize = null
+            if (phonePortrait) maxLines = 2
             setPadding(0, ipx(8), ipx(16), 0)
         })
         addView(head)

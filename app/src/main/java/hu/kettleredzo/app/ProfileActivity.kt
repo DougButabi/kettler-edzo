@@ -28,7 +28,8 @@ class ProfileActivity : KettlerActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(BG)
-            if (ui.portrait) setPadding(ui.ipx(35), ui.ipx(30), ui.ipx(5), 0) else setPadding(ui.ipx(60), ui.ipx(45), ui.ipx(30), 0)
+            val e = ui.edge
+            if (ui.portrait) setPadding(ui.ipx(35 + e), ui.ipx(30 + e), ui.ipx(5 + e), 0) else setPadding(ui.ipx(60 + e), ui.ipx(45), ui.ipx(30 + e), 0)
         }
         root.addView(ui.text("KETTLER", 32, INK, ui.light, 0.35f))
         root.addView(ui.text("Ki edz ma?", 72, INK, ui.bold), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
@@ -62,7 +63,8 @@ class ProfileActivity : KettlerActivity() {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             for (i in 0 until columns) {
                 val tile = rowTiles.getOrNull(i) ?: View(this)
-                row.addView(tile, ui.lp(0, ui.ipx(250), 1f).apply { rightMargin = ui.ipx(30) })
+                // Telefonon állóban a nagyobb betűk miatt magasabb a csempe
+                row.addView(tile, ui.lp(0, ui.ipx(if (ui.phone && ui.portrait) 320 else 250), 1f).apply { rightMargin = ui.ipx(30) })
             }
             grid.addView(row, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { bottomMargin = ui.ipx(30) })
         }
@@ -100,7 +102,7 @@ class ProfileActivity : KettlerActivity() {
 
     private fun addTile(): View {
         val card = card()
-        card.addView(ui.text("+", 80, INK, ui.light))
+        card.addView(ui.text("+", 80, INK, ui.light).apply { gravity = Gravity.CENTER })
         card.addView(ui.text("Új profil", 26, INK, ui.medium), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
             topMargin = ui.ipx(10)
         })

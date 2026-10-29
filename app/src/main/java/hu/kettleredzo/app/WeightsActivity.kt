@@ -127,7 +127,7 @@ class WeightsActivity : KettlerActivity() {
         }
         row.addView(ui.picture(ex?.image, ex?.name ?: "?", 84))
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        col.addView(ui.text("${index + 1}. ${ex?.name ?: "?"}", 28, INK, ui.bold))
+        col.addView(ui.text("${index + 1}. ${ex?.name ?: "?"}", 28, INK, ui.bold).apply { maxLines = 2 })
         col.addView(ui.text(details, 19, MUTED, ui.regular), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(6) })
         row.addView(col, ui.lp(0, WRAP_CONTENT, 1f).apply { leftMargin = ui.ipx(22) })
         if (badge != null) {
