@@ -36,7 +36,7 @@ class PlanDayActivity : KettlerActivity() {
             return
         }
         day = d
-        ui = Ui(this)
+        ui = Ui(this).apply { settingsMode() } // a beállítások része: telefonon is a mostani méretek
         // Forgatás után (telefon) a még el nem mentett szerkesztés folytatódik.
         val saved = savedInstanceState?.getString(STATE_ITEMS)
         if (saved != null) {

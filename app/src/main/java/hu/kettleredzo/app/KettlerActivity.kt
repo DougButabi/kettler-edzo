@@ -33,8 +33,4 @@ open class KettlerActivity : Activity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideSystemBars()
     }
-
-    companion object {
-        private const val TABLET_DP = 600
-    }
 }

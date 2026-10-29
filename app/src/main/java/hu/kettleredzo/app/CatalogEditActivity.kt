@@ -36,7 +36,7 @@ class CatalogEditActivity : KettlerActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        ui = Ui(this)
+        ui = Ui(this).apply { settingsMode() } // a beállítások része: telefonon is a mostani méretek
         kind = intent.getStringExtra(EXTRA_KIND) ?: KIND_EXERCISE
         val id = intent.getLongExtra(EXTRA_ID, -1)
         val db = Db.get(this)

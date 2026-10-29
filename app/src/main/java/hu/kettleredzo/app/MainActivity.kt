@@ -273,7 +273,7 @@ class MainActivity : KettlerActivity() {
     }
 
     private fun askOverlayPermission() {
-        if (!Prefs.overlay(this) || Settings.canDrawOverlays(this)) return
+        if (ui.phone || !Prefs.overlay(this) || Settings.canDrawOverlays(this)) return
         AlertDialog.Builder(this)
             .setTitle("Engedély kell az overlay-sávhoz")
             .setMessage(
@@ -472,15 +472,19 @@ class MainActivity : KettlerActivity() {
         rpmCol.addView(rpmRow, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(6) })
         bar.addView(rpmCol, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(if (ui.portrait) 16 else 30) })
 
-        // Kapcsolat állapota
-        statusV = ui.text("", 20, RED, ui.medium).apply { gravity = Gravity.END }
-        bar.addView(statusV, ui.lp(0, WRAP_CONTENT, 1f).apply {
-            leftMargin = ui.ipx(30)
-            rightMargin = ui.ipx(30)
-        })
+        // Kapcsolat állapota. Állóban a nagy betűk miatt nem fér a felső sorba, a gombok mellé kerül.
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        statusV = ui.text("", 20, RED, ui.medium).apply { gravity = if (ui.portrait) Gravity.START else Gravity.END }
+        if (ui.portrait) {
+            buttons.addView(statusV, ui.lp(0, WRAP_CONTENT, 1f).apply { rightMargin = ui.ipx(16) })
+        } else {
+            bar.addView(statusV, ui.lp(0, WRAP_CONTENT, 1f).apply {
+                leftMargin = ui.ipx(30)
+                rightMargin = ui.ipx(30)
+            })
+        }
 
         // Befejezés (csak szünetben) és a fő gomb
-        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val finish = ui.pillButton(R.drawable.ic_stop, "Befejezés", BAR_LINE, Color.WHITE) {
             finishWorkout()
             render()

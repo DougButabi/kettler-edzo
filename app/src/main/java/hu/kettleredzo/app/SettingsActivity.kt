@@ -59,9 +59,12 @@ class SettingsActivity : KettlerActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        ui = Ui(this)
+        ui = Ui(this).apply { settingsMode() }
         sport = Sport.of(intent.getStringExtra(EXTRA_SPORT))
-        val sections = Section.entries.filter { it.group.sport == sport || it.group == Group.GENERAL }
+        // Telefonon nincs overlay-sáv, így a Kijelző oldal (csak annak a kapcsolója) sem kell.
+        val sections = Section.entries.filter {
+            (it.group.sport == sport || it.group == Group.GENERAL) && !(it == Section.DISPLAY && ui.phone)
+        }
         section = sections.first()
         savedInstanceState?.getString(STATE_SECTION)?.let { name -> sections.firstOrNull { it.name == name }?.let { section = it } }
 

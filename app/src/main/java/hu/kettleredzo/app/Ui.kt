@@ -47,6 +47,12 @@ val RED: Int = Color.parseColor("#FF6B5E") // sötét háttéren jól látható 
 // Álló nézetben az edzésképernyők fotósávjának magassága (mintaterv-pixelben)
 private const val PORTRAIT_PHOTO_H = 420
 
+// Ennél kisebb oldalú (dp) kijelző telefonnak számít
+const val TABLET_DP = 600
+
+// Ettől a mérettől (mintaterv-pixel) a szöveg nagy szám, telefonon sem nő
+private const val BIG_TEXT = 40f
+
 // Közös építőkockák a képernyőkhöz. A méreteket a 904 px magas mintaterv pixeleiben
 // adjuk meg, és a képernyő magasságához skálázzuk őket.
 class Ui(private val ctx: Context) {
@@ -59,12 +65,37 @@ class Ui(private val ctx: Context) {
     val light: Typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
     val regular: Typeface = Typeface.DEFAULT
 
+    // ---- Telefon ----
+    // A tablet (legkisebb oldala 600 dp fölött) változatlan. Telefonon, állóban a feliratok kétszer
+    // akkorák és félkövérek, a gombfeliratok másfélszeresek; a nagy számok (BIG_TEXT-től) maradnak.
+    // A beállítás-jellegű oldalak (settingsMode) csak a magyarázó szövegeket nagyítják, másfélszeresre.
+    val phone = ctx.resources.configuration.smallestScreenWidthDp < TABLET_DP
+    private val phonePortrait = phone && portrait
+    private var textScale = if (phonePortrait) 2f else 1f
+    private var buttonScale = if (phonePortrait) 1.5f else 1f
+    private var noteScale = textScale
+
+    fun settingsMode() {
+        if (!phonePortrait) return
+        textScale = 1f
+        buttonScale = 1f
+        noteScale = 1.5f
+    }
+
+    // Telefonon a lekerekített kijelzősarkok miatt a széleken nagyobb a belső margó.
+    val edge: Int get() = if (phone) 35 else 0
+
+    private fun scaled(size: Number, k: Float) = size.toFloat().let { if (it >= BIG_TEXT) it else it * k }
+
     fun text(s: String, size: Number, color: Int, face: Typeface = medium, spacing: Float = 0f) =
+        scaledText(s, size, color, face, spacing, textScale)
+
+    private fun scaledText(s: String, size: Number, color: Int, face: Typeface, spacing: Float, k: Float) =
         TextView(ctx).apply {
             text = s
-            setTextSize(TypedValue.COMPLEX_UNIT_PX, px(size))
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, px(scaled(size, k)))
             setTextColor(color)
-            typeface = face
+            typeface = if (k > 1f && textScale > 1f) bold else face
             letterSpacing = spacing
             includeFontPadding = false
             maxLines = 1
@@ -95,13 +126,13 @@ class Ui(private val ctx: Context) {
     fun lp(w: Int, h: Int, weight: Float = 0f) = LinearLayout.LayoutParams(w, h, weight)
 
     // Lekerekített, világos szöveges gomb (pl. BEÁLLÍTÁSOK)
-    fun pill(caption: String, onClick: () -> Unit) = text(caption, 15, INK, medium, 0.06f).apply {
+    fun pill(caption: String, onClick: () -> Unit) = scaledText(caption, 15, INK, medium, 0.06f, buttonScale).apply {
         background = rounded(PILL, 30)
         setPadding(ipx(30), ipx(16), ipx(30), ipx(16))
         setOnClickListener { onClick() }
     }
 
-    fun roundButton(caption: String, onClick: () -> Unit) = text(caption, 30, Color.WHITE, medium).apply {
+    fun roundButton(caption: String, onClick: () -> Unit) = scaledText(caption, 30, Color.WHITE, medium, 0f, buttonScale).apply {
         gravity = Gravity.CENTER
         background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
@@ -117,7 +148,9 @@ class Ui(private val ctx: Context) {
             gravity = Gravity.CENTER
             background = rounded(bg, 45)
             addView(icon(iconRes, 34, fg))
-            addView(text(caption, 30, fg, medium), lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ipx(22) })
+            addView(scaledText(caption, 30, fg, medium, 0f, buttonScale), lp(WRAP_CONTENT, WRAP_CONTENT).apply {
+                leftMargin = ipx(if (phonePortrait) 14 else 22)
+            })
             setOnClickListener { onClick() }
         }
 
@@ -127,7 +160,7 @@ class Ui(private val ctx: Context) {
     // Álló nézetben (telefon) a képernyő tetejére kerül, kisebb címmel.
     fun sidePanel(title: String) = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL
-        if (portrait) setPadding(ipx(35), ipx(30), ipx(35), ipx(10)) else setPadding(ipx(60), ipx(45), ipx(30), ipx(45))
+        if (portrait) setPadding(ipx(35 + edge), ipx(30 + edge), ipx(35 + edge), ipx(10)) else setPadding(ipx(60 + edge), ipx(45), ipx(30), ipx(45))
         addView(text("KETTLER", 32, INK, light, 0.35f))
         addView(text(if (portrait) title.replace('\n', ' ') else title, if (portrait) 48 else 64, INK, bold).apply { maxLines = 2 },
             lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ipx(if (portrait) 16 else 50) })
@@ -150,7 +183,7 @@ class Ui(private val ctx: Context) {
 
     // A jobb oldali (állóban alsó) tartalom belső margója
     fun paneLayout(pane: LinearLayout, top: Int = 120) {
-        if (portrait) pane.setPadding(ipx(35), ipx(24), ipx(35), ipx(40)) else pane.setPadding(ipx(40), ipx(top), ipx(60), ipx(60))
+        if (portrait) pane.setPadding(ipx(35), ipx(24), ipx(35), ipx(40 + edge)) else pane.setPadding(ipx(40), ipx(top), ipx(60 + edge), ipx(60))
     }
 
     // Menügombok helye: fekvőben a bal sávban egymás alatt, állóban vízszintesen görgethető sorban.
@@ -207,7 +240,7 @@ class Ui(private val ctx: Context) {
         if (portrait) {
             val bar = LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(ipx(35), ipx(22), ipx(28), ipx(12))
+                setPadding(ipx(35 + edge), ipx(22 + edge), ipx(28 + edge), ipx(12))
             }
             val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             row.addView(logo, lp(0, WRAP_CONTENT, 1f))
@@ -216,7 +249,7 @@ class Ui(private val ctx: Context) {
             if (center != null) bar.addView(center, lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ipx(6) })
             return bar
         }
-        val bar = FrameLayout(ctx).apply { setPadding(ipx(35), ipx(22), ipx(28), 0) }
+        val bar = FrameLayout(ctx).apply { setPadding(ipx(35 + edge), ipx(22), ipx(28 + edge), 0) }
         bar.addView(logo, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.START))
         if (center != null) bar.addView(center, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER_HORIZONTAL))
         bar.addView(right, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.END))
@@ -232,7 +265,11 @@ class Ui(private val ctx: Context) {
             setOnClickListener { onSports() }
         }
         head.addView(text("KETTLER", 32, INK, light, 0.35f))
-        head.addView(text("‹ $subtitle", 13, MUTED, medium, 0.25f).apply { setPadding(0, ipx(8), 0, 0) })
+        // A betűköz miatt az Android kevesebb helyet mérne, és levágná („‹ ELLIPTI…”), lásd barLabel.
+        head.addView(text("‹ $subtitle", 13, MUTED, medium, 0.25f).apply {
+            ellipsize = null
+            setPadding(0, ipx(8), ipx(16), 0)
+        })
         addView(head)
         nameV.setPadding(0, ipx(18), 0, ipx(6))
         addView(nameV)
@@ -246,7 +283,7 @@ class Ui(private val ctx: Context) {
             return LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
                 setBackgroundColor(BAR)
-                setPadding(ipx(35), ipx(20), ipx(30), ipx(24))
+                setPadding(ipx(35 + edge), ipx(20), ipx(30 + edge), ipx(24 + edge))
                 addView(info, lp(MATCH_PARENT, WRAP_CONTENT))
                 addView(buttons, lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ipx(18) })
             }
@@ -255,7 +292,7 @@ class Ui(private val ctx: Context) {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(BAR)
-            setPadding(ipx(50), 0, ipx(30), 0)
+            setPadding(ipx(50 + edge), 0, ipx(30 + edge), 0)
             addView(info, lp(0, WRAP_CONTENT, 1f))
             addView(buttons)
         }
@@ -286,14 +323,14 @@ class Ui(private val ctx: Context) {
     fun fieldLp() = lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ipx(12) }
 
     // Nagy, lekerekített szöveges gomb
-    fun button(caption: String, bg: Int, fg: Int, onClick: () -> Unit) = text(caption, 30, fg, medium).apply {
+    fun button(caption: String, bg: Int, fg: Int, onClick: () -> Unit) = scaledText(caption, 30, fg, medium, 0f, buttonScale).apply {
         gravity = Gravity.CENTER
         background = rounded(bg, 45)
         setOnClickListener { onClick() }
     }
 
     // Választógomb (pl. Férfi / Nő); a kijelölést a setChosen állítja
-    fun choice(caption: String, size: Number = 30, onClick: () -> Unit) = text(caption, size, INK, medium).apply {
+    fun choice(caption: String, size: Number = 30, onClick: () -> Unit) = scaledText(caption, size, INK, medium, 0f, buttonScale).apply {
         gravity = Gravity.CENTER
         setChosen(this, false)
         setOnClickListener { onClick() }
@@ -345,13 +382,15 @@ class Ui(private val ctx: Context) {
     }
 
     // Több soros, halvány magyarázó szöveg
-    fun note(s: String, lines: Int = 4) = text(s, 22, MUTED, regular).apply {
+    fun note(s: String, lines: Int = 4) = scaledText(s, 22, MUTED, regular, 0f, noteScale).apply {
         maxLines = lines
         ellipsize = null
     }
 
     // Gép vagy gyakorlat képe fehér, lekerekített kártyán. Kép nélkül a név kezdőbetűje látszik.
-    fun picture(image: String?, name: String, size: Number): View {
+    // Telefonon állóban (grow) a gép- és gyakorlatképek másfélszeresek.
+    fun picture(image: String?, name: String, baseSize: Number, grow: Boolean = true): View {
+        val size = baseSize.toFloat() * (if (grow && phonePortrait) 1.5f else 1f)
         val box = FrameLayout(ctx).apply {
             background = rounded(Color.WHITE, 18)
             clipToOutline = true

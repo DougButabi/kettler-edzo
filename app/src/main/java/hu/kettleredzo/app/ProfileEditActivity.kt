@@ -35,7 +35,7 @@ class ProfileEditActivity : KettlerActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        ui = Ui(this)
+        ui = Ui(this).apply { settingsMode() } // a beállítások része: telefonon is a mostani méretek
         profile = Db.get(this).profile(intent.getLongExtra(EXTRA_PROFILE_ID, -1))
         sex = profile?.sex
         savedInstanceState?.getString(STATE_SEX)?.let { sex = Sex.of(it) }

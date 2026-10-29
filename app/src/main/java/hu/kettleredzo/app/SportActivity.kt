@@ -29,7 +29,8 @@ class SportActivity : KettlerActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(BG)
-            if (portrait) setPadding(ui.ipx(35), ui.ipx(30), ui.ipx(35), ui.ipx(30)) else setPadding(ui.ipx(60), ui.ipx(45), ui.ipx(60), ui.ipx(45))
+            val e = ui.edge
+            if (portrait) setPadding(ui.ipx(35 + e), ui.ipx(30 + e), ui.ipx(35 + e), ui.ipx(30 + e)) else setPadding(ui.ipx(60 + e), ui.ipx(45), ui.ipx(60 + e), ui.ipx(45))
         }
         root.addView(ui.text("KETTLER", 32, INK, ui.light, 0.35f))
         root.addView(ui.text("Szia ${profile.name}, mit edzel ma?", if (portrait) 48 else 64, INK, ui.bold).apply { maxLines = 2 },
@@ -78,7 +79,7 @@ class SportActivity : KettlerActivity() {
             setPadding(ui.ipx(24), ui.ipx(24), ui.ipx(24), ui.ipx(24))
             setOnClickListener { onClick() }
         }
-        card.addView(ui.picture(image, title, if (portrait) 300 else 340))
+        card.addView(ui.picture(image, title, if (portrait) 300 else 340, grow = false))
         val text = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = if (portrait) Gravity.START else Gravity.CENTER_HORIZONTAL

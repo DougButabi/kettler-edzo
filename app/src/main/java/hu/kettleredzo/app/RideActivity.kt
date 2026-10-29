@@ -24,8 +24,8 @@ import org.osmdroid.views.overlay.Polyline
 import kotlin.math.roundToInt
 
 // Tekerés közben, az elliptikus edzésképernyő mintájára: nagy számok (sebesség, idő vagy a
-// hátralévő cél, táv, átlag, szint, kalória), és a képernyő kb. 40%-án a térkép (állóban felül,
-// fekvőben bal oldalt). A mérést a BikeService végzi; kikapcsolt kijelzővel is megy tovább.
+// hátralévő cél, táv, átlag, szint, kalória) és a térkép (állóban a számok alatt, a képernyő kb.
+// 60%-án; fekvőben bal oldalt, kb. 40%-on). A mérést a BikeService végzi; kikapcsolt kijelzővel is megy tovább.
 class RideActivity : KettlerActivity() {
     private lateinit var ui: Ui
     private lateinit var map: MapView
@@ -241,7 +241,7 @@ class RideActivity : KettlerActivity() {
 
     // ---- Felület ----
 
-    // Állóban: térkép (40%) fölül, alatta a számok, legalul a sötét sáv.
+    // Állóban: felül a számok (40%), alattuk a térkép (60%), legalul a sötét sáv.
     // Fekvőben: térkép bal oldalt (40%), jobbra a számok, alul a sáv.
     private fun buildUi(): View {
         val portrait = ui.portrait
@@ -252,8 +252,13 @@ class RideActivity : KettlerActivity() {
         val content = LinearLayout(this).apply {
             orientation = if (portrait) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
         }
-        content.addView(buildMap(), if (portrait) ui.lp(MATCH_PARENT, 0, 0.4f) else ui.lp(0, MATCH_PARENT, 0.4f))
-        content.addView(buildPanel(), if (portrait) ui.lp(MATCH_PARENT, 0, 0.6f) else ui.lp(0, MATCH_PARENT, 0.6f))
+        if (portrait) {
+            content.addView(buildPanel(), ui.lp(MATCH_PARENT, 0, 0.4f))
+            content.addView(buildMap(), ui.lp(MATCH_PARENT, 0, 0.6f))
+        } else {
+            content.addView(buildMap(), ui.lp(0, MATCH_PARENT, 0.4f))
+            content.addView(buildPanel(), ui.lp(0, MATCH_PARENT, 0.6f))
+        }
         root.addView(content, ui.lp(MATCH_PARENT, 0, 1f))
         root.addView(buildBottomBar(), ui.lp(MATCH_PARENT, if (portrait) WRAP_CONTENT else ui.ipx(BAR_H)))
         return root
@@ -315,14 +320,20 @@ class RideActivity : KettlerActivity() {
 
     private fun buildPanel(): View {
         val portrait = ui.portrait
-        val big = if (portrait) 165 else 130
-        val small = if (portrait) 88 else 70
+        // Állóban a számok a képernyő 40%-át kapják, ezért kisebbek, mint az elliptikusnál.
+        val big = if (portrait) 135 else 130
+        val small = if (portrait) 76 else 70
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            if (portrait) setPadding(ui.ipx(35), ui.ipx(24), ui.ipx(35), ui.ipx(10)) else setPadding(ui.ipx(45), ui.ipx(30), ui.ipx(45), ui.ipx(10))
+            if (portrait) {
+                setPadding(ui.ipx(35 + ui.edge), ui.ipx(18 + ui.edge), ui.ipx(35 + ui.edge), ui.ipx(8))
+            } else {
+                setPadding(ui.ipx(45), ui.ipx(30), ui.ipx(45 + ui.edge), ui.ipx(10))
+            }
         }
+        // Állóban a 40%-ba nem fér el; a módot ott a jobb oldali mező címe is mutatja.
         modeV = ui.label("", MUTED)
-        panel.addView(modeV)
+        if (!portrait) panel.addView(modeV)
 
         // 1. sor: sebesség és idő / hátralévő cél
         val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -362,7 +373,7 @@ class RideActivity : KettlerActivity() {
         goalNoteV = ui.text("", 18, MUTED, ui.regular)
         goalCol.addView(goalNoteV, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(10) })
         row1.addView(goalCol, ui.lp(0, WRAP_CONTENT, 1f))
-        panel.addView(row1, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(16) })
+        panel.addView(row1, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(if (portrait) 0 else 16) })
 
         // 2. és 3. sor: kisebb csempék
         distV = ui.text("0,00", small, INK, ui.bold)
@@ -377,8 +388,8 @@ class RideActivity : KettlerActivity() {
     }
 
     private fun separatorLp() = ui.lp(MATCH_PARENT, 1).apply {
-        topMargin = ui.ipx(if (ui.portrait) 22 else 16)
-        bottomMargin = ui.ipx(if (ui.portrait) 22 else 16)
+        topMargin = ui.ipx(if (ui.portrait) 12 else 16)
+        bottomMargin = ui.ipx(if (ui.portrait) 12 else 16)
     }
 
     private fun tileRow(a: View, b: View): View {

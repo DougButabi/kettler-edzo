@@ -151,7 +151,9 @@ class WorkoutService : Service() {
 
     private fun updateOverlay() {
         val s = KettlerState
-        val wanted = s.running && !s.appVisible && Prefs.overlay(this) && Settings.canDrawOverlays(this)
+        // Telefonon nincs overlay-sáv.
+        val phone = resources.configuration.smallestScreenWidthDp < TABLET_DP
+        val wanted = s.running && !s.appVisible && !phone && Prefs.overlay(this) && Settings.canDrawOverlays(this)
         if (wanted && overlay == null) addOverlay()
         if (!wanted && overlay != null) removeOverlay()
         overlay?.text = overlayText()

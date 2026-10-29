@@ -36,7 +36,8 @@ class LogActivity : KettlerActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(BG)
-            setPadding(ui.ipx(if (ui.portrait) 30 else 45), ui.ipx(30), ui.ipx(if (ui.portrait) 30 else 45), 0)
+            val e = ui.edge
+            setPadding(ui.ipx(if (ui.portrait) 30 + e else 45 + e), ui.ipx(if (ui.portrait) 30 + e else 30), ui.ipx(if (ui.portrait) 30 + e else 45 + e), 0)
         }
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -142,7 +143,7 @@ class LogActivity : KettlerActivity() {
             background = ui.rounded(CARD, 20)
             setPadding(ui.ipx(26), ui.ipx(18), ui.ipx(26), ui.ipx(18))
         }
-        card.addView(ui.text(dateFormat.format(Date(w.startedAt)) + "   ·   " + w.label, 20, MUTED, ui.medium))
+        card.addView(ui.text(dateFormat.format(Date(w.startedAt)) + "   ·   " + w.label, 20, MUTED, ui.medium).apply { maxLines = 2 })
         val (main, details) = when (w.sport) {
             Sport.ELLIPTICAL ->
                 "${formatTime(w.movingMs)}   ·   ${formatNum(w.distanceKm, 2)} km   ·   ${formatNum(w.kcal, 0)} kcal" to
@@ -156,8 +157,9 @@ class LogActivity : KettlerActivity() {
                     s.exercises.joinToString(" · ")
             }
         }
-        card.addView(ui.text(main, 34, INK, ui.bold), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
-        card.addView(ui.text(details, 19, MUTED, ui.regular), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
+        // Telefonon a nagy betűkkel több sorba törhet
+        card.addView(ui.text(main, 34, INK, ui.bold).apply { maxLines = 3 }, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
+        card.addView(ui.text(details, 19, MUTED, ui.regular).apply { maxLines = 4 }, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
         card.setOnLongClickListener {
             confirmDelete(w)
             true
