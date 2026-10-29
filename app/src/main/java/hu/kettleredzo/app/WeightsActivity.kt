@@ -223,7 +223,7 @@ class WeightsActivity : KettlerActivity() {
     // ---- Felület felépítése ----
 
     private fun buildUi(): View =
-        ui.homeScreen(R.drawable.sulyzos, PHOTO_LEFT, PHOTO_RIGHT, buildTopBar(), buildPanel(), buildBottomBar(), BAR_H)
+        ui.homeScreen(R.drawable.sulyzos, PHOTO_LEFT, PHOTO_RIGHT, buildTopBar(), buildPanel(), buildBottomBar(), BAR_H, belowHeader = true)
 
     private fun buildTopBar(): View {
         // A profil neve nagyban; koppintásra profilváltás

@@ -50,8 +50,8 @@ private const val PORTRAIT_PHOTO_H = 420
 // Ennél kisebb oldalú (dp) kijelző telefonnak számít
 const val TABLET_DP = 600
 
-// Fekvő telefonon az edzésképernyő fejlécének magassága, ide nem lóg be a fotó (mintaterv-pixel)
-private const val PHONE_HEADER_H = 190f
+// Fekvőben az edzésképernyő fejlécének magassága, ide nem lóg be a fotó (mintaterv-pixel)
+private const val PHOTO_HEADER_H = 190f
 
 // Ettől a mérettől (mintaterv-pixel) a szöveg nagy szám, telefonon sem nő
 private const val BIG_TEXT = 40f
@@ -229,7 +229,8 @@ class Ui(private val ctx: Context) {
     // Edzésképernyők (elliptikus, súlyzós, kerékpár) közös váza. Fekvőben: háttérfotó a bal
     // félben, a tartalom a jobb oldalon, felül a fejléc, alul a sötét sáv. Állóban: fejléc,
     // fotó, tartalom, sáv egymás alatt.
-    fun homeScreen(photoRes: Int, left: Float, right: Float, topBar: View, panel: View, bottomBar: View, barH: Int): View {
+    // belowHeader: a fotó fekvőben tableten is a fejléc alatt kezdődjön (ahol a tárgy magasra nyúlik, pl. súlyzó).
+    fun homeScreen(photoRes: Int, left: Float, right: Float, topBar: View, panel: View, bottomBar: View, barH: Int, belowHeader: Boolean = false): View {
         if (portrait) {
             val root = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
             root.addView(topBar, lp(MATCH_PARENT, WRAP_CONTENT))
@@ -240,7 +241,7 @@ class Ui(private val ctx: Context) {
             return root
         }
         val root = FrameLayout(ctx)
-        root.addView(photoArea(root, photoRes, left, right), FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT).apply {
+        root.addView(photoArea(root, photoRes, left, right, belowHeader), FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT).apply {
             bottomMargin = ipx(barH)
         })
         root.addView(topBar, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, Gravity.TOP))
@@ -367,7 +368,7 @@ class Ui(private val ctx: Context) {
     // tárgy (a kép left..right pixelei közötti rész) a bal félbe essen. A jobb oldalt a fotó utolsó
     // oszlopának kinyújtásával töltjük ki, így nem látszik illesztés. A root háttere a fotó sarokszíne.
     // Állóban a fotó a saját sávját tölti ki, a tárgy középre kerül.
-    fun photoArea(root: View, res: Int, left: Float, right: Float): View {
+    fun photoArea(root: View, res: Int, left: Float, right: Float, belowHeader: Boolean = false): View {
         val share = if (portrait) 1f else 0.5f
         val centered = portrait
         val bmp = BitmapFactory.decodeResource(ctx.resources, res)
@@ -376,19 +377,25 @@ class Ui(private val ctx: Context) {
             setImageBitmap(Bitmap.createBitmap(bmp, bmp.width - 2, 0, 1, bmp.height))
             scaleType = ImageView.ScaleType.MATRIX
         }
+        // Ha a fotó nem ér fel a tetejéig, fölötte a felső sorát nyújtjuk ki (különben látszana a határ).
+        val topStrip = ImageView(ctx).apply {
+            setImageBitmap(Bitmap.createBitmap(bmp, 0, 1, bmp.width, 1))
+            scaleType = ImageView.ScaleType.MATRIX
+        }
         val photo = ImageView(ctx).apply {
             setImageBitmap(bmp)
             scaleType = ImageView.ScaleType.MATRIX
         }
         val area = FrameLayout(ctx)
         area.addView(strip, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        area.addView(topStrip, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         area.addView(photo, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         area.addOnLayoutChangeListener { _, l, t, r, b, _, _, _, _ ->
             val w = r - l
             val h = b - t
             var s = min(h / bmp.height.toFloat(), w * share / (right - left))
-            // Fekvő telefonon a széles képernyőn a fotó a fejlécbe (logó, név) lógna: alatta kezdődjön.
-            if (phone && !centered) s = min(s, (h - px(PHONE_HEADER_H)) / bmp.height)
+            // Fekvő telefonon (és a magas tárgyú fotóknál tableten is) a fotó a fejlécbe (logó, név) lógna: alatta kezdődjön.
+            if ((phone || belowHeader) && !centered) s = min(s, (h - px(PHOTO_HEADER_H)) / bmp.height)
             val dy = h - bmp.height * s
             val dx = if (centered) (w - (right - left) * s) / 2 - left * s else -left * s + px(20)
             photo.imageMatrix = Matrix().apply {
@@ -398,6 +405,10 @@ class Ui(private val ctx: Context) {
             strip.imageMatrix = Matrix().apply {
                 setScale(w.toFloat(), s)
                 postTranslate(0f, dy)
+            }
+            topStrip.imageMatrix = Matrix().apply {
+                setScale(s, maxOf(dy, 0f) + 1f)
+                postTranslate(dx, 0f)
             }
         }
         return area
