@@ -223,11 +223,17 @@ class Ui(private val ctx: Context) {
         return bar
     }
 
-    // Logó: KETTLER, alcím, és a profil neve nagyban (koppintásra profilváltás)
-    fun logo(subtitle: String, nameV: TextView) = LinearLayout(ctx).apply {
+    // Logó: KETTLER, alcím (a sport), és a profil neve nagyban. A logóra / sportnévre koppintva
+    // onSports fut (vissza a sportválasztóhoz), a névre koppintva a hívó dönt (profilváltás).
+    fun logo(subtitle: String, nameV: TextView, onSports: () -> Unit) = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL
-        addView(text("KETTLER", 32, INK, light, 0.35f))
-        addView(text(subtitle, 13, MUTED, medium, 0.25f).apply { setPadding(0, ipx(8), 0, 0) })
+        val head = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setOnClickListener { onSports() }
+        }
+        head.addView(text("KETTLER", 32, INK, light, 0.35f))
+        head.addView(text("‹ $subtitle", 13, MUTED, medium, 0.25f).apply { setPadding(0, ipx(8), 0, 0) })
+        addView(head)
         nameV.setPadding(0, ipx(18), 0, ipx(6))
         addView(nameV)
     }

@@ -50,10 +50,18 @@ class BikeService : Service() {
             val dt = now - lastTick
             lastTick = now
             Beeper.enabled = Prefs.beeps(this@BikeService)
-            if (BikeState.onTick(dt)) {
+            when (BikeState.onTick(dt)) {
                 // Cél teljesítve: dupla hosszú hang. A tekerés megy tovább, a Befejezést te nyomod.
-                Beeper.long()
-                handler.postDelayed({ Beeper.long() }, 900)
+                RideEvent.GOAL -> {
+                    Beeper.long()
+                    handler.postDelayed({ Beeper.long() }, 900)
+                }
+                RideEvent.HALFWAY -> if (Prefs.halfwayBeep(this@BikeService)) {
+                    Beeper.short()
+                    handler.postDelayed({ Beeper.long() }, 400)
+                }
+                RideEvent.KM -> if (Prefs.kmBeep(this@BikeService)) Beeper.short()
+                RideEvent.NONE -> {}
             }
             notifications?.notify(NOTIFICATION_ID, notification())
             BikeState.notifyChanged()

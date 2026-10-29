@@ -1,14 +1,20 @@
 package hu.kettleredzo.app
 
+import android.content.Context
 import android.location.Location
 import org.json.JSONArray
 import org.json.JSONObject
+import org.osmdroid.config.Configuration
+import java.io.File
 import kotlin.math.max
+
+// Amit a másodpercenkénti lépés jelez (a BikeService ebből ad hangjelzést)
+enum class RideEvent { NONE, KM, HALFWAY, GOAL }
 
 // A kerékpáros tekerés közös állapota (a BikeService írja, a képernyők olvassák). Csak fő szálról.
 object BikeState {
-    // Ez alatt a sebesség alatt áll az idő (automatikus szünet), és nem nő a táv (GPS-ingadozás).
-    const val AUTO_PAUSE_KMH = 3.0
+    // Ez alatt a sebesség alatt nem nő a táv (álló helyzetben a GPS-hely ingadozik).
+    private const val DRIFT_KMH = 2.0
 
     // Ennél pontatlanabb GPS-helyet nem használunk a távhoz.
     private const val MAX_ACCURACY_M = 30f
@@ -35,6 +41,11 @@ object BikeState {
     var kcal = 0.0
     var goalReached = false
 
+    // Automatikus szünet küszöbe km/h-ban (0 = kikapcsolva); indításkor a beállításból jön.
+    var autoPauseKmh = 3.0
+    private var lastWholeKm = 0
+    private var halfwayDone = false
+
     // GPS
     var lastLocation: Location? = null
     var lastFixAt = 0L
@@ -46,7 +57,7 @@ object BikeState {
 
     val hasFix get() = lastLocation != null && System.currentTimeMillis() - lastFixAt < FIX_TIMEOUT_MS
     val isCounting get() = running && !paused
-    val autoPaused get() = isCounting && speedKmh < AUTO_PAUSE_KMH
+    val autoPaused get() = isCounting && autoPauseKmh > 0 && speedKmh < autoPauseKmh
     val avgSpeedKmh get() = if (movingMs >= 5000) distanceKm / (movingMs / 3_600_000.0) else 0.0
 
     // Haladás a cél felé, 0..1 (szabad tekerésnél 0)
@@ -84,9 +95,12 @@ object BikeState {
         this.goal = goal
     }
 
-    fun start(profile: Profile) {
+    fun start(profile: Profile, autoPauseKmh: Double) {
         profileId = profile.id
         weightKg = profile.weightKg
+        this.autoPauseKmh = autoPauseKmh
+        lastWholeKm = 0
+        halfwayDone = false
         running = true
         paused = false
         startedAt = System.currentTimeMillis()
@@ -133,7 +147,7 @@ object BikeState {
         }
         if (!isCounting) return
 
-        if (speedKmh >= AUTO_PAUSE_KMH && speedKmh < 120) {
+        if (speedKmh >= DRIFT_KMH && speedKmh < 120) {
             distanceKm += dist / 1000.0
             if (speedKmh > maxSpeedKmh) maxSpeedKmh = speedKmh
             if (loc.hasAltitude()) climb(loc.altitude)
@@ -144,17 +158,27 @@ object BikeState {
         }
     }
 
-    // Másodpercenként: mozgásidő és kalória. Igazat ad vissza, ha épp most teljesült a cél.
-    fun onTick(dtMs: Long): Boolean {
+    // Másodpercenként: mozgásidő és kalória. Jelzi, ha épp most teljesült a cél, a fele,
+    // vagy betelt egy újabb kilométer.
+    fun onTick(dtMs: Long): RideEvent {
         if (!hasFix) speedKmh = 0.0
-        if (!isCounting || autoPaused) return false
+        if (!isCounting || autoPaused) return RideEvent.NONE
         movingMs += dtMs
         kcal += Cycling.met(speedKmh) * weightKg * dtMs / 3_600_000.0
         if (!goalReached && goalMet) {
             goalReached = true
-            return true
+            return RideEvent.GOAL
         }
-        return false
+        if (!halfwayDone && !goalReached && mode != WorkoutMode.FREE && progress >= 0.5f) {
+            halfwayDone = true
+            return RideEvent.HALFWAY
+        }
+        val km = distanceKm.toInt()
+        if (km > lastWholeKm) {
+            lastWholeKm = km
+            return RideEvent.KM
+        }
+        return RideEvent.NONE
     }
 
     // Szintemelkedés: simított magasság, és csak a küszöbnél nagyobb emelkedést számoljuk.
@@ -179,6 +203,26 @@ object BikeState {
         val out = FloatArray(1)
         Location.distanceBetween(lat1, lon1, lat2, lon2, out)
         return out[0].toDouble()
+    }
+}
+
+// OpenStreetMap-térkép (osmdroid) közös beállítása: a csempék az app saját mappájába kerülnek,
+// így engedély nem kell hozzá, és a Beállításokból törölhetők.
+object Maps {
+    fun init(c: Context) {
+        Configuration.getInstance().apply {
+            userAgentValue = c.packageName
+            osmdroidBasePath = File(c.filesDir, "osmdroid")
+            osmdroidTileCache = tileDir(c)
+        }
+    }
+
+    private fun tileDir(c: Context) = File(c.cacheDir, "osmdroid-tiles")
+
+    fun tileBytes(c: Context): Long = tileDir(c).walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
+    fun clearTiles(c: Context) {
+        tileDir(c).deleteRecursively()
     }
 }
 

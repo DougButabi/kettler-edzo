@@ -62,10 +62,6 @@
             android:exported="false" />
 
         <activity
-            android:name=".WeightsMenuActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".PlanDayActivity"
             android:exported="false" />
 
@@ -84,6 +80,10 @@
 
         <activity
             android:name=".RideActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".TrackActivity"
             android:exported="false" />
 
         <service

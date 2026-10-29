@@ -245,7 +245,10 @@ class MainActivity : KettlerActivity() {
 
     private fun openSettings() {
         @Suppress("DEPRECATION")
-        startActivityForResult(Intent(this, SettingsActivity::class.java), REQ_SETTINGS)
+        startActivityForResult(
+            Intent(this, SettingsActivity::class.java).putExtra(SettingsActivity.EXTRA_SPORT, Sport.ELLIPTICAL.code),
+            REQ_SETTINGS,
+        )
     }
 
     private fun openMode() {
@@ -304,9 +307,19 @@ class MainActivity : KettlerActivity() {
         }
         val right = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         right.addView(ui.pill("NAPLÓ") { startActivity(Intent(this, LogActivity::class.java)) })
-        right.addView(ui.pill(if (ui.portrait) "MENÜ" else "BEÁLLÍTÁSOK") { openSettings() },
+        right.addView(ui.pill("BEÁLLÍTÁSOK") { openSettings() },
             ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(14) })
-        return ui.topBar(ui.logo("VITO XL · ELLIPTIKUS TRÉNER", nameV), modePill, right)
+        return ui.topBar(ui.logo("VITO XL · ELLIPTIKUS TRÉNER", nameV) { openSports() }, modePill, right)
+    }
+
+    // Vissza a sportválasztóhoz (edzés közben nem lehet)
+    private fun openSports() {
+        if (KettlerState.running) {
+            ui.toast("Edzés közben nem lehet sportot váltani. Előbb fejezd be az edzést.")
+            return
+        }
+        startActivity(Intent(this, SportActivity::class.java))
+        finish()
     }
 
     private fun buildPanel(): View {

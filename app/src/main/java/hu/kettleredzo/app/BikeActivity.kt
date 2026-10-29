@@ -111,7 +111,7 @@ class BikeActivity : KettlerActivity() {
             return
         }
         Prefs.applyBikeMode(this)
-        BikeState.start(profile)
+        BikeState.start(profile, if (Prefs.autoPause(this)) Prefs.autoPauseKmh(this).toDouble() else 0.0)
         startForegroundService(Intent(this, BikeService::class.java))
         openRide()
     }
@@ -172,7 +172,11 @@ class BikeActivity : KettlerActivity() {
         }
         val right = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         right.addView(ui.pill("NAPLÓ") { startActivity(Intent(this, LogActivity::class.java)) })
-        val top = ui.topBar(ui.logo("KERÉKPÁR", nameV), modePill, right)
+        right.addView(ui.pill("BEÁLLÍTÁSOK") {
+            startActivity(Intent(this, SettingsActivity::class.java).putExtra(SettingsActivity.EXTRA_SPORT, Sport.BIKE.code))
+        }, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(14) })
+        // A sportválasztó alattunk van a veremben, elég bezárni ezt a képernyőt.
+        val top = ui.topBar(ui.logo("KERÉKPÁR", nameV) { finish() }, modePill, right)
 
         val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }

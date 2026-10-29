@@ -15,18 +15,17 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
-import java.io.File
+import kotlin.math.roundToInt
 
-// Tekerés közben: a képernyőt az OpenStreetMap-térkép tölti ki (hol vagy, merre jártál),
-// felül egy sávban a sebesség, a táv és az idő, alul Szünet / Folytatás / Befejezés.
-// A mérést a BikeService végzi, ez a képernyő csak mutatja; kikapcsolt kijelzővel is megy tovább.
+// Tekerés közben, az elliptikus edzésképernyő mintájára: nagy számok (sebesség, idő vagy a
+// hátralévő cél, táv, átlag, szint, kalória), és a képernyő kb. 40%-án a térkép (állóban felül,
+// fekvőben bal oldalt). A mérést a BikeService végzi; kikapcsolt kijelzővel is megy tovább.
 class RideActivity : KettlerActivity() {
     private lateinit var ui: Ui
     private lateinit var map: MapView
@@ -34,11 +33,24 @@ class RideActivity : KettlerActivity() {
     private lateinit var marker: Marker
     private var drawnPoints = 0
     private var follow = true
+    private var lastTouchAt = 0L
+    private var zoomedIn = false
 
+    private lateinit var modeV: TextView
     private lateinit var speedV: TextView
+    private lateinit var goalLabelV: TextView
+    private lateinit var goalValueV: TextView
+    private lateinit var progressRow: View
+    private lateinit var progressFill: View
+    private lateinit var progressRest: View
+    private lateinit var percentV: TextView
+    private lateinit var goalNoteV: TextView
     private lateinit var distV: TextView
-    private lateinit var timeV: TextView
+    private lateinit var avgV: TextView
+    private lateinit var climbV: TextView
+    private lateinit var kcalV: TextView
     private lateinit var statusV: TextView
+    private lateinit var followBtn: TextView
     private lateinit var mainIcon: ImageView
     private lateinit var mainText: TextView
     private lateinit var finishBtn: View
@@ -52,14 +64,9 @@ class RideActivity : KettlerActivity() {
             return
         }
         ui = Ui(this)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (Prefs.rideScreenOn(this)) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         follow = savedInstanceState?.getBoolean(STATE_FOLLOW, true) ?: true
-        // A térképcsempék az app saját mappájába kerülnek (engedély nem kell hozzá).
-        Configuration.getInstance().apply {
-            userAgentValue = packageName
-            osmdroidBasePath = File(filesDir, "osmdroid")
-            osmdroidTileCache = File(cacheDir, "osmdroid-tiles")
-        }
+        Maps.init(this)
         setContentView(buildUi())
     }
 
@@ -98,19 +105,23 @@ class RideActivity : KettlerActivity() {
 
     private fun render() {
         val s = BikeState
+        modeV.text = "KERÉKPÁR   ·   " + modeLabel(s.mode, s.goal, null).uppercase()
         speedV.text = formatNum(s.speedKmh, 1)
+        renderGoal()
         distV.text = formatNum(s.distanceKm, 2)
-        timeV.text = formatTime(s.movingMs)
+        avgV.text = formatNum(s.avgSpeedKmh, 1)
+        climbV.text = s.elevGain.roundToInt().toString()
+        kcalV.text = formatNum(s.kcal, 0)
 
         val (text, color) = when {
             s.gpsError != null -> s.gpsError!! to RED
             !s.hasFix -> "GPS jelre vár…" to RED
-            s.paused -> "SZÜNET" to YELLOW
-            s.autoPaused -> "ÁLLSZ – automatikus szünet" to YELLOW
-            else -> (s.goalStatus() ?: "${formatNum(s.avgSpeedKmh, 1)} km/h átlag   ·   ↑ ${formatNum(s.elevGain, 0)} m   ·   ${formatNum(s.kcal, 0)} kcal") to Color.WHITE
+            s.paused -> "Szünet" to YELLOW
+            s.autoPaused -> "Állsz – automatikus szünet" to YELLOW
+            else -> "● GPS rendben" to GREEN
         }
-        statusV.text = if (s.goalReached && !s.paused && s.hasFix) "CÉL TELJESÍTVE ✓   ·   ${formatNum(s.kcal, 0)} kcal" else text
-        statusV.setTextColor(if (s.goalReached && s.hasFix) GREEN else color)
+        statusV.text = text
+        statusV.setTextColor(color)
 
         if (s.paused) {
             mainIcon.setImageResource(R.drawable.ic_play)
@@ -120,8 +131,57 @@ class RideActivity : KettlerActivity() {
             mainText.text = "Szünet"
         }
         finishBtn.visibility = if (s.paused) View.VISIBLE else View.GONE
+        renderMap()
+    }
 
-        // Útvonal és a jelenlegi hely
+    // A jobb felső nagy mező a módhoz igazodik: eltelt idő vagy a hátralévő táv / kalória / idő.
+    private fun renderGoal() {
+        val s = BikeState
+        val time = formatTime(s.movingMs)
+        when {
+            s.goalReached || s.mode == WorkoutMode.FREE || s.mode == WorkoutMode.PROGRAM -> {
+                goalLabelV.text = if (s.goalReached) "CÉL TELJESÍTVE! ✓" else "IDŐ"
+                goalValueV.text = time
+                goalNoteV.text = if (s.goalReached) "Cél: ${goalText(s.goal)} ${unit(s.mode)}" else ""
+            }
+            s.mode == WorkoutMode.DISTANCE -> {
+                goalLabelV.text = "HÁTRALÉVŐ TÁV"
+                goalValueV.text = formatNum(maxOf(0.0, s.goal - s.distanceKm), 2)
+                goalNoteV.text = "km   ·   eltelt $time"
+            }
+            s.mode == WorkoutMode.KCAL -> {
+                goalLabelV.text = "HÁTRALÉVŐ KALÓRIA"
+                goalValueV.text = formatNum(maxOf(0.0, s.goal - s.kcal), 0)
+                goalNoteV.text = "kcal   ·   eltelt $time"
+            }
+            else -> {
+                goalLabelV.text = "HÁTRALÉVŐ IDŐ"
+                goalValueV.text = formatTimeUp(maxOf(0L, (s.goal * 60_000).toLong() - s.movingMs))
+                goalNoteV.text = "Cél: ${goalText(s.goal)} perc"
+            }
+        }
+        val p = s.progress
+        progressRow.visibility = if (s.mode == WorkoutMode.FREE) View.GONE else View.VISIBLE
+        (progressFill.layoutParams as LinearLayout.LayoutParams).weight = p
+        (progressRest.layoutParams as LinearLayout.LayoutParams).weight = 1f - p
+        progressFill.requestLayout()
+        percentV.text = "${(p * 100).roundToInt()}%"
+    }
+
+    private fun unit(mode: WorkoutMode) = when (mode) {
+        WorkoutMode.DISTANCE -> "km"
+        WorkoutMode.KCAL -> "kcal"
+        else -> "perc"
+    }
+
+    // Útvonal, a jelenlegi hely, és a követés: minden új helynél középre állítjuk a térképet
+    // (animáció nélkül, mert a gyakori animációk egymást szakítanák meg, és a térkép állva maradna).
+    private fun renderMap() {
+        val s = BikeState
+        val resume = Prefs.followResumeSec(this)
+        if (!follow && resume > 0 && System.currentTimeMillis() - lastTouchAt > resume * 1000L) follow = true
+        ui.setChosen(followBtn, follow)
+
         if (s.points.size != drawnPoints) {
             track.setPoints(s.points.map { GeoPoint(it[0], it[1]) })
             drawnPoints = s.points.size
@@ -130,7 +190,11 @@ class RideActivity : KettlerActivity() {
             val here = GeoPoint(it.latitude, it.longitude)
             marker.position = here
             marker.isEnabled = true
-            if (follow) map.controller.animateTo(here)
+            if (!zoomedIn) {
+                map.controller.setZoom(Prefs.mapZoom(this))
+                zoomedIn = true
+            }
+            if (follow) map.controller.setCenter(here)
         }
         map.invalidate()
     }
@@ -177,21 +241,44 @@ class RideActivity : KettlerActivity() {
 
     // ---- Felület ----
 
-    @SuppressLint("ClickableViewAccessibility")
+    // Állóban: térkép (40%) fölül, alatta a számok, legalul a sötét sáv.
+    // Fekvőben: térkép bal oldalt (40%), jobbra a számok, alul a sáv.
     private fun buildUi(): View {
-        val root = FrameLayout(this)
+        val portrait = ui.portrait
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(BG)
+        }
+        val content = LinearLayout(this).apply {
+            orientation = if (portrait) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        }
+        content.addView(buildMap(), if (portrait) ui.lp(MATCH_PARENT, 0, 0.4f) else ui.lp(0, MATCH_PARENT, 0.4f))
+        content.addView(buildPanel(), if (portrait) ui.lp(MATCH_PARENT, 0, 0.6f) else ui.lp(0, MATCH_PARENT, 0.6f))
+        root.addView(content, ui.lp(MATCH_PARENT, 0, 1f))
+        root.addView(buildBottomBar(), ui.lp(MATCH_PARENT, if (portrait) WRAP_CONTENT else ui.ipx(BAR_H)))
+        return root
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun buildMap(): View {
+        val box = FrameLayout(this)
         map = MapView(this).apply {
             setTileSource(TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
             zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
-            controller.setZoom(if (BikeState.lastLocation != null) 17.0 else 7.5)
-            controller.setCenter(BikeState.lastLocation?.let { GeoPoint(it.latitude, it.longitude) } ?: HUNGARY)
-            // Ha kézzel elhúzod a térképet, nem ugrik vissza; a Követés gomb kapcsolja vissza.
+            val last = BikeState.lastLocation
+            controller.setZoom(if (last != null) Prefs.mapZoom(this@RideActivity) else 7.5)
+            controller.setCenter(last?.let { GeoPoint(it.latitude, it.longitude) } ?: HUNGARY)
+            // Ha kézzel elhúzod a térképet, egy ideig nem ugrik vissza (lásd Beállítások → Térkép).
             setOnTouchListener { _, e ->
-                if (e.action == MotionEvent.ACTION_MOVE) follow = false
+                if (e.action == MotionEvent.ACTION_MOVE) {
+                    follow = false
+                    lastTouchAt = System.currentTimeMillis()
+                }
                 false
             }
         }
+        zoomedIn = BikeState.lastLocation != null
         track = Polyline(map).apply {
             outlinePaint.color = Color.parseColor("#E0262626")
             outlinePaint.strokeWidth = ui.px(9)
@@ -209,75 +296,142 @@ class RideActivity : KettlerActivity() {
         }
         map.overlays.add(track)
         map.overlays.add(marker)
-        root.addView(map, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        root.addView(buildTopBar(), FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, Gravity.TOP))
-        root.addView(buildBottomBar(), FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, Gravity.BOTTOM))
-        return root
+        box.addView(map, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+
+        followBtn = ui.choice("◎ Követés", 22) {
+            follow = true
+            render()
+        }.apply { setPadding(ui.ipx(28), 0, ui.ipx(28), 0) }
+        box.addView(followBtn, FrameLayout.LayoutParams(WRAP_CONTENT, ui.ipx(70), Gravity.TOP or Gravity.END).apply {
+            setMargins(0, ui.ipx(20), ui.ipx(20), 0)
+        })
+        // Az OpenStreetMap licence szerint a térképen fel kell tüntetni a forrást.
+        box.addView(ui.text("© OpenStreetMap", 14, MUTED, ui.regular).apply {
+            setBackgroundColor(Color.parseColor("#B3FFFFFF"))
+            setPadding(ui.ipx(8), ui.ipx(2), ui.ipx(8), ui.ipx(2))
+        }, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.BOTTOM or Gravity.END))
+        return box
     }
 
-    // Felső sáv: sebesség, táv, idő nagyban, alatta az állapot (GPS, szünet, cél)
-    private fun buildTopBar(): View {
-        val bar = LinearLayout(this).apply {
+    private fun buildPanel(): View {
+        val portrait = ui.portrait
+        val big = if (portrait) 165 else 130
+        val small = if (portrait) 88 else 70
+        val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(OVERLAY)
-            setPadding(ui.ipx(35), ui.ipx(18), ui.ipx(35), ui.ipx(16))
+            if (portrait) setPadding(ui.ipx(35), ui.ipx(24), ui.ipx(35), ui.ipx(10)) else setPadding(ui.ipx(45), ui.ipx(30), ui.ipx(45), ui.ipx(10))
         }
+        modeV = ui.label("", MUTED)
+        panel.addView(modeV)
+
+        // 1. sor: sebesség és idő / hátralévő cél
+        val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val speedCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        speedCol.addView(ui.label("SEBESSÉG"))
+        speedV = ui.bigValue(big)
+        speedCol.addView(speedV, ui.lp(MATCH_PARENT, ui.ipx(big + 10)).apply { topMargin = ui.ipx(10) })
+        speedCol.addView(ui.text("km/h", 30, MUTED, ui.regular))
+        row1.addView(speedCol, ui.lp(0, WRAP_CONTENT, 1f))
+        row1.addView(ui.line(), ui.lp(1, MATCH_PARENT).apply {
+            leftMargin = ui.ipx(30)
+            rightMargin = ui.ipx(30)
+        })
+        val goalCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        goalLabelV = ui.label("IDŐ")
+        goalCol.addView(goalLabelV)
+        goalValueV = ui.bigValue(big)
+        goalCol.addView(goalValueV, ui.lp(MATCH_PARENT, ui.ipx(big + 10)).apply { topMargin = ui.ipx(10) })
+        val progress = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        progressRow = progress
+        val trackBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            background = ui.rounded(TRACK, 7)
+            clipToOutline = true
+        }
+        progressFill = View(this).apply { background = ui.rounded(YELLOW, 7) }
+        progressRest = View(this)
+        trackBar.addView(progressFill, ui.lp(0, MATCH_PARENT, 0f))
+        trackBar.addView(progressRest, ui.lp(0, MATCH_PARENT, 1f))
+        progress.addView(trackBar, ui.lp(0, ui.ipx(14), 1f))
+        percentV = ui.text("0%", 18, INK, ui.medium)
+        progress.addView(percentV, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(14) })
+        goalCol.addView(progress, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(6) })
+        goalNoteV = ui.text("", 18, MUTED, ui.regular)
+        goalCol.addView(goalNoteV, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(10) })
+        row1.addView(goalCol, ui.lp(0, WRAP_CONTENT, 1f))
+        panel.addView(row1, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(16) })
+
+        // 2. és 3. sor: kisebb csempék
+        distV = ui.text("0,00", small, INK, ui.bold)
+        avgV = ui.text("0,0", small, INK, ui.bold)
+        climbV = ui.text("0", small, INK, ui.bold)
+        kcalV = ui.text("0", small, INK, ui.bold)
+        panel.addView(ui.line(), separatorLp())
+        panel.addView(tileRow(tile(R.drawable.ic_place, "TÁV", distV, "km"), tile(R.drawable.ic_trend, "ÁTLAG", avgV, "km/h")))
+        panel.addView(ui.line(), separatorLp())
+        panel.addView(tileRow(tile(R.drawable.ic_bars, "SZINT", climbV, "m"), tile(R.drawable.ic_fire, "KALÓRIA", kcalV, "kcal")))
+        return panel
+    }
+
+    private fun separatorLp() = ui.lp(MATCH_PARENT, 1).apply {
+        topMargin = ui.ipx(if (ui.portrait) 22 else 16)
+        bottomMargin = ui.ipx(if (ui.portrait) 22 else 16)
+    }
+
+    private fun tileRow(a: View, b: View): View {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        speedV = value()
-        distV = value()
-        timeV = value()
-        row.addView(stat("SEBESSÉG", speedV, "km/h"), ui.lp(0, WRAP_CONTENT, 1f))
-        row.addView(stat("TÁV", distV, "km"), ui.lp(0, WRAP_CONTENT, 1f))
-        row.addView(stat("IDŐ", timeV, ""), ui.lp(0, WRAP_CONTENT, 1.15f))
-        bar.addView(row)
-        statusV = ui.text("", 22, Color.WHITE, ui.medium)
-        bar.addView(statusV, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(10) })
-        return bar
+        row.addView(a, ui.lp(0, WRAP_CONTENT, 1f))
+        row.addView(ui.line(), ui.lp(1, MATCH_PARENT).apply {
+            leftMargin = ui.ipx(30)
+            rightMargin = ui.ipx(30)
+        })
+        row.addView(b, ui.lp(0, WRAP_CONTENT, 1f))
+        return row
     }
 
-    private fun value() = ui.text("0", if (ui.portrait) 64 else 72, Color.WHITE, ui.bold).apply {
-        ellipsize = null
-    }
-
-    private fun stat(title: String, value: TextView, unit: String): View {
+    private fun tile(iconRes: Int, title: String, value: TextView, unit: String): View {
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        col.addView(ui.barLabel(title))
-        // A vízszintes LinearLayout alapból alapvonalra igazít, így a mértékegység a szám aljához kerül.
-        val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        line.addView(value)
-        if (unit.isNotEmpty()) {
-            line.addView(ui.text(unit, 22, BAR_MUTED, ui.regular), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(8) })
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-        col.addView(line, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(4) })
+        header.addView(ui.icon(iconRes, 28, INK))
+        header.addView(ui.label(title), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(18) })
+        col.addView(header)
+        // A vízszintes LinearLayout alapból alapvonalra igazít, így a mértékegység a szám aljához kerül.
+        val valueRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(ui.ipx(46), ui.ipx(10), 0, 0)
+        }
+        valueRow.addView(value)
+        valueRow.addView(ui.text(unit, 24, MUTED, ui.regular), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(12) })
+        col.addView(valueRow)
         return col
     }
 
     private fun buildBottomBar(): View {
-        val bar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(OVERLAY)
-            setPadding(ui.ipx(30), ui.ipx(18), ui.ipx(30), ui.ipx(18))
-        }
-        bar.addView(ui.pill("◎ KÖVETÉS") {
-            follow = true
-            render()
-        })
-        bar.addView(View(this), ui.lp(0, 1, 1f))
+        val info = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        info.addView(ui.icon(R.drawable.ic_place, 40, Color.WHITE))
+        statusV = ui.text("", 22, GREEN, ui.medium)
+        info.addView(statusV, ui.lp(0, WRAP_CONTENT, 1f).apply { leftMargin = ui.ipx(20) })
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val finish = ui.pillButton(R.drawable.ic_stop, "Befejezés", BAR_LINE, Color.WHITE) { finishRide() }
         finishBtn = finish
-        bar.addView(finish, ui.lp(ui.ipx(250), ui.ipx(85)).apply { rightMargin = ui.ipx(16) })
+        buttons.addView(finish, ui.lp(ui.ipx(250), ui.ipx(85)).apply { rightMargin = ui.ipx(20) })
         val main = ui.pillButton(R.drawable.ic_pause, "Szünet", BUTTON, INK) { onMainButton() }
         mainIcon = main.getChildAt(0) as ImageView
         mainText = main.getChildAt(1) as TextView
-        bar.addView(main, ui.lp(ui.ipx(270), ui.ipx(85)))
-        return bar
+        buttons.addView(main, ui.lp(ui.ipx(290), ui.ipx(85)))
+        return ui.bottomBar(info, buttons)
     }
 
     companion object {
         private const val MIN_SAVED_MS = 60_000L
         private const val STATE_FOLLOW = "follow"
-        private val OVERLAY = Color.parseColor("#E62B2B2B")
+        private const val BAR_H = 145
         private val HUNGARY = GeoPoint(47.16, 19.5)
     }
 }

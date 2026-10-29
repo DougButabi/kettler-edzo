@@ -44,6 +44,28 @@ object Prefs {
     fun setBikeGoal(c: Context, mode: WorkoutMode, value: Double) =
         prefs(c).edit().putFloat("bikeGoal_" + mode.code, value.toFloat()).apply()
 
+    // Kerékpáros beállítások
+    fun autoPause(c: Context): Boolean = prefs(c).getBoolean("bikeAutoPause", true)
+    fun setAutoPause(c: Context, value: Boolean) = prefs(c).edit().putBoolean("bikeAutoPause", value).apply()
+    fun autoPauseKmh(c: Context): Int = prefs(c).getInt("bikeAutoPauseKmh", 3)
+    fun setAutoPauseKmh(c: Context, value: Int) = prefs(c).edit().putInt("bikeAutoPauseKmh", value).apply()
+
+    // Térkép nagyítása tekerés közben (osmdroid zoomszint)
+    fun mapZoom(c: Context): Double = prefs(c).getFloat("bikeMapZoom", 17f).toDouble()
+    fun setMapZoom(c: Context, value: Double) = prefs(c).edit().putFloat("bikeMapZoom", value.toFloat()).apply()
+
+    // Kézi elhúzás után ennyi mp múlva követ újra (0 = csak a Követés gombra)
+    fun followResumeSec(c: Context): Int = prefs(c).getInt("bikeFollowResume", 10)
+    fun setFollowResumeSec(c: Context, value: Int) = prefs(c).edit().putInt("bikeFollowResume", value).apply()
+
+    fun kmBeep(c: Context): Boolean = prefs(c).getBoolean("bikeKmBeep", false)
+    fun setKmBeep(c: Context, value: Boolean) = prefs(c).edit().putBoolean("bikeKmBeep", value).apply()
+    fun halfwayBeep(c: Context): Boolean = prefs(c).getBoolean("bikeHalfway", true)
+    fun setHalfwayBeep(c: Context, value: Boolean) = prefs(c).edit().putBoolean("bikeHalfway", value).apply()
+
+    fun rideScreenOn(c: Context): Boolean = prefs(c).getBoolean("bikeScreenOn", true)
+    fun setRideScreenOn(c: Context, value: Boolean) = prefs(c).edit().putBoolean("bikeScreenOn", value).apply()
+
     // A mentett kerékpáros módot betölti a közös állapotba (tekerés közben nem nyúlunk hozzá).
     fun applyBikeMode(c: Context) {
         if (BikeState.running) return

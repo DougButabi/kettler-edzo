@@ -16,7 +16,7 @@ import android.widget.TextView
 
 // A súlyzós edzés kezdőképernyője, az elliptikus edzésképernyő mintájára: bal oldalt a fotó,
 // jobb oldalt a kiválasztott nap gyakorlatai és sorozatai, alul a napválasztó és az Indítás.
-// Az edzésterv, a gyakorlatok és a gépek a MENÜ gombról érhetők el.
+// Az edzésterv, a gyakorlatok és a gépek a BEÁLLÍTÁSOK gombról érhetők el.
 class WeightsActivity : KettlerActivity() {
     private lateinit var ui: Ui
     private lateinit var profile: Profile
@@ -87,14 +87,14 @@ class WeightsActivity : KettlerActivity() {
         if (day == null) {
             headV.text = "MÉG NINCS EDZÉSTERVED"
             titleV.text = "Kezdjük!"
-            list.addView(ui.note("A MENÜ gombbal készíthetsz edzéstervet, vagy betölthetsz egy kész tervet."), lineLp())
+            list.addView(ui.note("A BEÁLLÍTÁSOK → Edzésterv alatt készíthetsz edzéstervet, vagy betölthetsz egy kész tervet."), lineLp())
             statusV.text = ""
             return
         }
         headV.text = if (day.id == recommendedId) "${day.letter} NAP   ·   AJÁNLOTT" else "${day.letter} NAP"
         val sets = day.items.sumOf { it.sets.size }
         titleV.text = "${day.items.size} gyakorlat · $sets sorozat"
-        if (day.items.isEmpty()) list.addView(ui.note("Ebben a napban még nincs gyakorlat. A MENÜ → Edzésterv alatt adhatsz hozzá."), lineLp())
+        if (day.items.isEmpty()) list.addView(ui.note("Ebben a napban még nincs gyakorlat. A BEÁLLÍTÁSOK → Edzésterv alatt adhatsz hozzá."), lineLp())
         val db = Db.get(this)
         day.items.forEachIndexed { i, item ->
             val ex = db.exercise(item.exerciseId)
@@ -180,11 +180,11 @@ class WeightsActivity : KettlerActivity() {
         }
         val day = days.firstOrNull { it.id == selectedDayId }
         if (day == null) {
-            openMenu()
+            openSettings()
             return
         }
         if (day.items.isEmpty()) {
-            ui.toast("Ebben a napban még nincs gyakorlat. A MENÜ → Edzésterv alatt adhatsz hozzá.")
+            ui.toast("Ebben a napban még nincs gyakorlat. A BEÁLLÍTÁSOK → Edzésterv alatt adhatsz hozzá.")
             return
         }
         openLift(Db.get(this).startLift(profile.id, day))
@@ -194,8 +194,8 @@ class WeightsActivity : KettlerActivity() {
         startActivity(Intent(this, LiftActivity::class.java).putExtra(LiftActivity.EXTRA_WORKOUT_ID, workoutId))
     }
 
-    private fun openMenu() {
-        startActivity(Intent(this, WeightsMenuActivity::class.java))
+    private fun openSettings() {
+        startActivity(Intent(this, SettingsActivity::class.java).putExtra(SettingsActivity.EXTRA_SPORT, Sport.WEIGHTS.code))
     }
 
     private fun confirmDiscard() {
@@ -217,6 +217,9 @@ class WeightsActivity : KettlerActivity() {
         finishAffinity()
     }
 
+    // A sportválasztó alattunk van a veremben, elég bezárni ezt a képernyőt.
+    private fun openSports() = finish()
+
     // ---- Felület felépítése ----
 
     private fun buildUi(): View =
@@ -227,8 +230,8 @@ class WeightsActivity : KettlerActivity() {
         nameV = ui.text(profile.name, 46, INK, ui.bold).apply { setOnClickListener { openProfiles() } }
         val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         buttons.addView(ui.pill("NAPLÓ") { startActivity(Intent(this, LogActivity::class.java)) })
-        buttons.addView(ui.pill("MENÜ") { openMenu() }, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(14) })
-        return ui.topBar(ui.logo("SÚLYZÓS EDZÉS", nameV), null, buttons)
+        buttons.addView(ui.pill("BEÁLLÍTÁSOK") { openSettings() }, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(14) })
+        return ui.topBar(ui.logo("SÚLYZÓS EDZÉS", nameV) { openSports() }, null, buttons)
     }
 
     private fun buildPanel(): View {

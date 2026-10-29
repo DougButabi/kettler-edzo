@@ -2,6 +2,7 @@ package hu.kettleredzo.app
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -160,6 +161,15 @@ class LogActivity : KettlerActivity() {
         card.setOnLongClickListener {
             confirmDelete(w)
             true
+        }
+        // Kerékpáros tekerésnél koppintásra az útvonal térképen
+        if (w.sport == Sport.BIKE) {
+            card.addView(ui.text("Koppints az útvonalért ›", 18, MUTED, ui.medium), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
+                topMargin = ui.ipx(8)
+            })
+            card.setOnClickListener {
+                startActivity(Intent(this, TrackActivity::class.java).putExtra(TrackActivity.EXTRA_WORKOUT_ID, w.id))
+            }
         }
         return card
     }

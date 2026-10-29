@@ -269,6 +269,19 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
         w.elevGain?.let { put("elev_gain", it) }
     }
 
+    // Egy tekerés útvonala: [[lat, lon], …] (üres, ha nincs mentve)
+    fun track(workoutId: Long): List<DoubleArray> {
+        val json = readableDatabase.rawQuery(
+            "SELECT points FROM tracks WHERE workout_id = ? AND deleted = 0 LIMIT 1",
+            arrayOf(workoutId.toString()),
+        ).use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: return emptyList()
+        val a = org.json.JSONArray(json)
+        return (0 until a.length()).map {
+            val p = a.getJSONArray(it)
+            doubleArrayOf(p.getDouble(0), p.getDouble(1))
+        }
+    }
+
     // Kerékpáros edzés mentése az útvonalával együtt
     fun addRide(w: Workout, points: String): Long {
         var id = 0L
