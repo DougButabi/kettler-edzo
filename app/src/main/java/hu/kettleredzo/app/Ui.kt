@@ -50,6 +50,9 @@ private const val PORTRAIT_PHOTO_H = 420
 // Ennél kisebb oldalú (dp) kijelző telefonnak számít
 const val TABLET_DP = 600
 
+// Fekvő telefonon az edzésképernyő fejlécének magassága, ide nem lóg be a fotó (mintaterv-pixel)
+private const val PHONE_HEADER_H = 190f
+
 // Ettől a mérettől (mintaterv-pixel) a szöveg nagy szám, telefonon sem nő
 private const val BIG_TEXT = 40f
 
@@ -66,14 +69,23 @@ class Ui(private val ctx: Context) {
     val regular: Typeface = Typeface.DEFAULT
 
     // ---- Telefon ----
-    // A tablet (legkisebb oldala 600 dp fölött) változatlan. Telefonon, állóban a feliratok kétszer
-    // akkorák és félkövérek, a gombfeliratok másfélszeresek; a nagy számok (BIG_TEXT-től) maradnak.
+    // A tablet (legkisebb oldala 600 dp fölött) változatlan. Telefonon, állóban a feliratok 1,6-szorosak
+    // és félkövérek, a gombfeliratok másfélszeresek; a nagy számok (BIG_TEXT-től) maradnak.
     // A beállítás-jellegű oldalak (settingsMode) csak a magyarázó szövegeket nagyítják, másfélszeresre.
+    // Fekvőben a feliratok maradnak, csak az edzésképernyők gombjai nőnek (workoutButtons).
     val phone = ctx.resources.configuration.smallestScreenWidthDp < TABLET_DP
     private val phonePortrait = phone && portrait
-    private var textScale = if (phonePortrait) 2f else 1f
+    private var textScale = if (phonePortrait) 1.6f else 1f
     private var buttonScale = if (phonePortrait) 1.5f else 1f
     private var noteScale = textScale
+
+    // Edzésképernyők: telefonon fekvőben is akkora gombfeliratok, mint állóban
+    fun workoutButtons() {
+        if (phone && !portrait) buttonScale = 1.5f
+    }
+
+    // Gombként működő, de egyedi formájú szöveg (pl. edzésmód-pirula)
+    fun buttonText(s: String, size: Number, color: Int, face: Typeface = medium) = scaledText(s, size, color, face, 0f, buttonScale)
 
     fun settingsMode() {
         if (!phonePortrait) return
@@ -374,7 +386,9 @@ class Ui(private val ctx: Context) {
         area.addOnLayoutChangeListener { _, l, t, r, b, _, _, _, _ ->
             val w = r - l
             val h = b - t
-            val s = min(h / bmp.height.toFloat(), w * share / (right - left))
+            var s = min(h / bmp.height.toFloat(), w * share / (right - left))
+            // Fekvő telefonon a széles képernyőn a fotó a fejlécbe (logó, név) lógna: alatta kezdődjön.
+            if (phone && !centered) s = min(s, (h - px(PHONE_HEADER_H)) / bmp.height)
             val dy = h - bmp.height * s
             val dx = if (centered) (w - (right - left) * s) / 2 - left * s else -left * s + px(20)
             photo.imageMatrix = Matrix().apply {

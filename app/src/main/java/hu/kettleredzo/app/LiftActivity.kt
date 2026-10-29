@@ -61,7 +61,7 @@ class LiftActivity : KettlerActivity() {
         }
         workout = w
         profile = p
-        ui = Ui(this)
+        ui = Ui(this).apply { workoutButtons() }
         sets += db.liftSets(w.id)
         for (id in sets.map { it.exerciseId }.distinct()) db.exercise(id)?.let { exercises[id] = it }
         // Az első gyakorlat, amelyikben van még hátralévő sorozat
@@ -151,12 +151,12 @@ class LiftActivity : KettlerActivity() {
         restBox.addView(ui.label("PIHENŐ"))
         restV = ui.text("0:00", 64, INK, ui.bold)
         restBox.addView(restV, ui.lp(0, WRAP_CONTENT, 1f).apply { leftMargin = ui.ipx(30) })
-        restBox.addView(ui.text("+15 mp", 22, INK, ui.medium).apply {
+        restBox.addView(ui.buttonText("+15 mp", 22, INK).apply {
             background = ui.rounded(Color.WHITE, 30)
             setPadding(ui.ipx(24), ui.ipx(14), ui.ipx(24), ui.ipx(14))
             setOnClickListener { restEndAt += 15_000 }
         })
-        restBox.addView(ui.text("Kihagyás", 22, INK, ui.medium).apply {
+        restBox.addView(ui.buttonText("Kihagyás", 22, INK).apply {
             background = ui.rounded(Color.WHITE, 30)
             setPadding(ui.ipx(24), ui.ipx(14), ui.ipx(24), ui.ipx(14))
             setOnClickListener { stopRest() }

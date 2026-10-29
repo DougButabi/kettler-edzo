@@ -42,7 +42,7 @@ class WeightsActivity : KettlerActivity() {
             return
         }
         profile = p
-        ui = Ui(this)
+        ui = Ui(this).apply { workoutButtons() }
         selectedDayId = savedInstanceState?.getLong(STATE_DAY, -1L) ?: -1L
         setContentView(buildUi())
     }

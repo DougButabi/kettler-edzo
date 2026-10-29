@@ -38,7 +38,7 @@ class BikeActivity : KettlerActivity() {
             return
         }
         profile = p
-        ui = Ui(this)
+        ui = Ui(this).apply { workoutButtons() }
         setContentView(buildUi())
     }
 
@@ -165,7 +165,7 @@ class BikeActivity : KettlerActivity() {
 
     private fun buildUi(): View {
         val nameV = ui.text(profile.name, 46, INK, ui.bold).apply { setOnClickListener { openProfiles() } }
-        modePill = ui.text("", 20, INK, ui.medium).apply {
+        modePill = ui.buttonText("", 20, INK).apply {
             background = ui.rounded(PILL, 30)
             setPadding(ui.ipx(40), ui.ipx(14), ui.ipx(40), ui.ipx(14))
             setOnClickListener { openMode() }

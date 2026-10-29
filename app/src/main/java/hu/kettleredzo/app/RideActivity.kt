@@ -63,7 +63,7 @@ class RideActivity : KettlerActivity() {
             finish()
             return
         }
-        ui = Ui(this)
+        ui = Ui(this).apply { workoutButtons() }
         if (Prefs.rideScreenOn(this)) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         follow = savedInstanceState?.getBoolean(STATE_FOLLOW, true) ?: true
         Maps.init(this)

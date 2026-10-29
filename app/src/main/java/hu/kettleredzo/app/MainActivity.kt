@@ -61,7 +61,7 @@ class MainActivity : KettlerActivity() {
             return
         }
         profile = p
-        ui = Ui(this)
+        ui = Ui(this).apply { workoutButtons() }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(buildUi())
         if (Prefs.host(this).isBlank()) openSettings()
@@ -300,7 +300,7 @@ class MainActivity : KettlerActivity() {
     private fun buildTopBar(): View {
         // A profil neve nagyban; koppintásra profilváltás
         nameV = ui.text(profile.name, 46, INK, ui.bold).apply { setOnClickListener { onProfileName() } }
-        modePill = ui.text("", 20, INK, ui.medium).apply {
+        modePill = ui.buttonText("", 20, INK).apply {
             background = ui.rounded(PILL, 30)
             setPadding(ui.ipx(40), ui.ipx(14), ui.ipx(40), ui.ipx(14))
             setOnClickListener { openMode() }
