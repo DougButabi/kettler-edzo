@@ -52,6 +52,7 @@ class SettingsActivity : KettlerActivity() {
     private val navButtons = mutableMapOf<Section, TextView>()
     private lateinit var section: Section
     private var statusV: TextView? = null
+    private var dropsV: TextView? = null
     private val handler = Handler(Looper.getMainLooper())
 
     private val listener: () -> Unit = { renderStatus() }
@@ -117,6 +118,7 @@ class SettingsActivity : KettlerActivity() {
         navButtons.forEach { (k, v) -> ui.setChosen(v, k == s) }
         pane.removeAllViews()
         statusV = null
+        dropsV = null
         when (s) {
             Section.CONNECTION -> buildConnection()
             Section.DISPLAY -> buildDisplay()
@@ -151,6 +153,10 @@ class SettingsActivity : KettlerActivity() {
         statusV = sv
         pane.addView(sv, ui.fieldLp())
         pane.addView(note("A külső eszköz (ESP32) küldi a fordulatszámot, a sebességet és a távot."), sectionLp())
+        pane.addView(ui.label("UTOLSÓ MEGSZAKADÁSOK"), sectionLp())
+        val dv = note("")
+        dropsV = dv
+        pane.addView(dv, ui.fieldLp())
         renderStatus()
     }
 
@@ -165,6 +171,7 @@ class SettingsActivity : KettlerActivity() {
         }
         v.text = text
         v.setTextColor(color)
+        dropsV?.text = EspClient.recentDrops().joinToString("\n").ifEmpty { "Nem volt megszakadás." }
     }
 
     private fun buildDisplay() {
