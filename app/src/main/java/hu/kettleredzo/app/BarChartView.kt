@@ -7,10 +7,11 @@ import android.graphics.RectF
 import android.view.View
 import kotlin.math.max
 
-// Egyszerű oszlopdiagram: napi értékek, alattuk a nap száma, a mai oszlop sárga.
+// Egyszerű oszlopdiagram: napi értékek (a decimals tizedesjeggyel), alattuk a nap száma, a mai oszlop sárga.
 class BarChartView(context: Context, private val ui: Ui) : View(context) {
     var values = DoubleArray(0)
     var labels = emptyList<String>()
+    var decimals = 1
 
     private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = BAR }
     private val todayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = YELLOW }
@@ -49,7 +50,7 @@ class BarChartView(context: Context, private val ui: Ui) : View(context) {
             if (values[i] > 0) {
                 rect.set(cx - barW / 2, bottom - h, cx + barW / 2, bottom)
                 canvas.drawRoundRect(rect, ui.px(4), ui.px(4), if (i == n - 1) todayPaint else barPaint)
-                canvas.drawText(formatNum(values[i], 1), cx, bottom - h - ui.px(6), valuePaint)
+                canvas.drawText(formatNum(values[i], decimals), cx, bottom - h - ui.px(6), valuePaint)
             }
             labels.getOrNull(i)?.let { canvas.drawText(it, cx, height - ui.px(6), labelPaint) }
         }

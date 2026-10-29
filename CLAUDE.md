@@ -1,6 +1,6 @@
 # Kettler edzőapp
 
-Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig átlátszó overlay-sáv más appok (pl. Kodi) fölött, profilok, edzésnapló, edzésmódok és programok. Következő nagy lépés: súlyzós edzés modul és központi adatbázis (lásd lent).
+Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig átlátszó overlay-sáv más appok (pl. Kodi) fölött, profilok, edzésnapló, edzésmódok és programok. 0.6 óta súlyzós edzés modul is van. Következő nagy lépés: központi adatbázis (lásd lent).
 
 ## Kommunikáció a felhasználóval
 - Magyarul, lazán, haverként, helyes helyesírással. Röviden, lényegre törően.
@@ -34,11 +34,15 @@ Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig 
 
 ## Az app felépítése (`app/src/main/java/hu/kettleredzo/app/`)
 - `KettlerActivity` – minden képernyő alapja: rendszersávok elrejtése, és számolja, látszik-e az app (ilyenkor az overlay rejtve marad).
-- `ProfileActivity` (indító, profilválasztó), `ProfileEditActivity`, `MainActivity` (edzésképernyő), `ModeActivity` (edzésmód), `SettingsActivity` (menük: Kapcsolat/Kijelző/Edzés/Felhasználók/Névjegy), `LogActivity` + `BarChartView` (napló).
-- `WorkoutService` – előtérszolgáltatás: SSE-kapcsolat (`EspClient`), 1 mp-es tick (mozgásidő, programszakaszok, cél ellenőrzése, hangok), overlay-sáv.
-- `KettlerState` – közös állapot (csak fő szálról). `Prefs` – SharedPreferences + formázók. `Training.kt` – edzésmódok, kezdő program, `Beeper`. `Db.kt` – SQLite (v2: profiles, workouts; mode/goal/program/completed oszlopokkal).
-- `Ui.kt` – közös stílus: színek, a 904 px magas mintaterv pixeleiben megadott méretek (`ui.px/ipx`), `text`, `label`, `sidePanel`, `field`, `button`, `choice`/`setChosen`, `pill`, `pillButton`. Új képernyőnél ezeket használd.
-- Képek: `res/drawable-nodpi/trener.webp` (nő) és `trener_ferfi.webp` (férfi) a profil neme szerint; adaptív app-ikon a `mipmap-anydpi-v26`-ban.
+- Útvonal: `ProfileActivity` (indító, profilválasztó) → `SportActivity` (elliptikus vagy súlyzós) → `MainActivity` (elliptikus edzésképernyő) vagy `WeightsActivity` (súlyzós kezdőlap).
+- Elliptikus: `ModeActivity` (edzésmód), `SettingsActivity` (menük: Kapcsolat/Kijelző/Edzés/Felhasználók/Névjegy), `ProfileEditActivity`.
+- Súlyzós (0.6 óta): `WeightsActivity` (menü: Edzés/Edzésterv/Gyakorlatok/Gépek), `PlanDayActivity` (egy nap szerkesztése: gyakorlatok, pihenő, sorozatok egyenként), `LiftActivity` (edzés közben: pipálás, ismétlés/súly állítása, pihenő-visszaszámlálás, befejezéskor emelési javaslat), `CatalogEditActivity` (gép vagy gyakorlat: név, kép, gép). `Weights.kt` – adatosztályok, `Lifting` (MET-es kalóriabecslés, súlylépések), `Catalog` (beépített gépek/gyakorlatok, kész tervek), `Images` (kép betöltése, saját kép importálása a `files/kepek` mappába).
+- Közös napló: `LogActivity` + `BarChartView` (mindkét sport, a diagram edzésidő percben).
+- `WorkoutService` – előtérszolgáltatás: SSE-kapcsolat (`EspClient`), 1 mp-es tick (mozgásidő, programszakaszok, cél ellenőrzése, hangok), overlay-sáv. Csak az elliptikus edzéshez kell.
+- `KettlerState` – közös állapot (csak fő szálról). `Prefs` – SharedPreferences + formázók. `Training.kt` – edzésmódok, kezdő program, `Beeper`.
+- `Db.kt` – SQLite, v3. Táblák: profiles, workouts (sport, title, in_progress oszlopokkal; a súlyzós edzés is ide kerül), equipment, exercises, plan_days, plan_items (a sorozatok JSON-ban), workout_sets. **Minden táblában `uuid`, `updated_at`, `deleted`** a későbbi ULC-szinkronhoz: törlés csak megjelöléssel (`softDelete`), mentés a `save()`-en át (ez adja az uuid-t és az updated_at-et). Új táblánál is így csináld. A folyamatban lévő súlyzós edzés `in_progress = 1`, a napló ezt nem mutatja.
+- `Ui.kt` – közös stílus: színek, a 904 px magas mintaterv pixeleiben megadott méretek (`ui.px/ipx`), `text`, `label`, `note`, `sidePanel`, `field`, `button`, `choice`/`setChosen`, `pill`, `pillButton`, `picture` (kép kártyán, kép nélkül kezdőbetű), `stepper` (−/+). Új képernyőnél ezeket használd.
+- Képek: `res/drawable-nodpi/trener.webp` (nő) és `trener_ferfi.webp` (férfi) a profil neme szerint; `wger_*.webp` gyakorlatrajzok (wger.de, CC-BY-SA, szerzők a Névjegyben és a `Catalog.IMAGE_CREDITS`-ben); adaptív app-ikon a `mipmap-anydpi-v26`-ban.
 
 ## Buktatók
 - Kotlin: egy Activity-tulajdonság ne legyen azonos nevű egy View-taggal (pl. `right`, `left`). `View.apply {}` blokkon belül a View tagja nyer → furcsa típushiba.
@@ -47,7 +51,8 @@ Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig 
 - Az overlay csak futó edzés közben látszik, és kell hozzá a „Megjelenítés más alkalmazások felett” engedély.
 - `letterSpacing`-es, kipontozott feliratokat az Android levághat. Szűk helyen `ellipsize = null` és egy kis ráhagyás kell.
 
-## Következő: súlyzós modul és központi adatbázis (megbeszélt, még nincs elkezdve)
+## Súlyzós modul (0.6-ban elkészült) és központi adatbázis (még nincs elkezdve)
+- Állapot 2026-10-29: a súlyzós modul első változata kész (lásd fent). Pulzuspántos (Keytel) kalória még nincs, mert a pánt nincs bekötve; addig MET-becslés. A központi adatbázis / ULC-szinkron későbbre halasztva, a profilok az ULC-ben is külön edzésprofilok lesznek (nem az ULC-felhasználókhoz kötve).
 - **Második sport: súlyzós edzés.** A felhasználó eszközei: fekvenyomó pad, Scott-pad, tárcsás lehúzó, kézi súlyzók.
   - Alapadatok: **gépek** és **gyakorlatok** névvel és képpel, menüből bővíthetők. Kép: alapból a wger nyílt adatbázis rajza (CC-BY-SA, szerzőt fel kell tüntetni a Névjegyben), lecserélhető saját képre.
   - **Edzésterv:** betűjeles napok (A, B, C…). Naponként gyakorlatok, gyakorlatonként sorozatok egyenként (ismétlés + súly, eltérhetnek, pl. 1×8×15 kg, aztán 3×8×40 kg). Lehet kész programból indulni, utána szerkeszthető.

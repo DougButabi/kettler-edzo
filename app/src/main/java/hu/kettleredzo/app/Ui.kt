@@ -14,6 +14,7 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -161,6 +162,47 @@ class Ui(private val ctx: Context) {
     }
 
     fun toast(msg: String) = Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+
+    // Több soros, halvány magyarázó szöveg
+    fun note(s: String, lines: Int = 4) = text(s, 22, MUTED, regular).apply {
+        maxLines = lines
+        ellipsize = null
+    }
+
+    // Gép vagy gyakorlat képe fehér, lekerekített kártyán. Kép nélkül a név kezdőbetűje látszik.
+    fun picture(image: String?, name: String, size: Number): View {
+        val box = FrameLayout(ctx).apply {
+            background = rounded(Color.WHITE, 18)
+            clipToOutline = true
+            layoutParams = LinearLayout.LayoutParams(ipx(size), ipx(size))
+        }
+        val bmp = Images.load(ctx, image)
+        if (bmp != null) {
+            box.addView(ImageView(ctx).apply {
+                setImageBitmap(bmp)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                setPadding(ipx(6), ipx(6), ipx(6), ipx(6))
+            }, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        } else {
+            box.addView(text(name.take(1).uppercase(), size.toFloat() * 0.45f, LINE, bold).apply {
+                gravity = Gravity.CENTER
+            }, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        }
+        return box
+    }
+
+    // Kis −/+ léptető: a középső szöveget a hívó frissíti.
+    fun stepper(value: TextView, onMinus: () -> Unit, onPlus: () -> Unit) = LinearLayout(ctx).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        addView(choice("−", 34) { onMinus() }, lp(ipx(70), ipx(70)))
+        value.gravity = Gravity.CENTER
+        addView(value, lp(WRAP_CONTENT, WRAP_CONTENT).apply {
+            leftMargin = ipx(8)
+            rightMargin = ipx(8)
+        })
+        addView(choice("+", 34) { onPlus() }, lp(ipx(70), ipx(70)))
+    }
 }
 
 // Fekvő módban a billentyűzet alapból az egész képernyőt elfoglalja, és csak a szerkesztett

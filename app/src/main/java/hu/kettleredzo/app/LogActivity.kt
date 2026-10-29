@@ -13,7 +13,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 
-// Az aktuális profil edzésnaplója: összesítő, 14 napos diagram és az edzések listája.
+// Az aktuális profil közös edzésnaplója (elliptikus és súlyzós): összesítő, 14 napos diagram
+// és az edzések listája.
 class LogActivity : KettlerActivity() {
     private lateinit var ui: Ui
     private lateinit var profile: Profile
@@ -68,11 +69,12 @@ class LogActivity : KettlerActivity() {
             background = ui.rounded(CARD, 24)
             setPadding(ui.ipx(28), ui.ipx(24), ui.ipx(28), ui.ipx(16))
         }
-        chartCard.addView(ui.label("AZ ELMÚLT 14 NAP (km)"))
+        chartCard.addView(ui.label("AZ ELMÚLT 14 NAP (edzésidő, perc)"))
         val starts = dayStarts(DAYS)
         val cal = Calendar.getInstance()
         val chart = BarChartView(this, ui).apply {
-            values = db.dailyKm(profile.id, DAYS)
+            values = db.dailyMinutes(profile.id, DAYS)
+            decimals = 0
             labels = (0 until DAYS).map {
                 cal.timeInMillis = starts[it]
                 cal.get(Calendar.DAY_OF_MONTH).toString()
@@ -134,20 +136,18 @@ class LogActivity : KettlerActivity() {
             setPadding(ui.ipx(26), ui.ipx(18), ui.ipx(26), ui.ipx(18))
         }
         card.addView(ui.text(dateFormat.format(Date(w.startedAt)) + "   ·   " + w.label, 20, MUTED, ui.medium))
-        card.addView(
-            ui.text(
-                "${formatTime(w.movingMs)}   ·   ${formatNum(w.distanceKm, 2)} km   ·   ${formatNum(w.kcal, 0)} kcal",
-                34, INK, ui.bold,
-            ),
-            ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) },
-        )
-        card.addView(
-            ui.text(
-                "átlag ${formatNum(w.avgSpeed, 1)} km/h   ·   max ${formatNum(w.maxSpeed, 1)} km/h   ·   fokozat ${w.level}",
-                19, MUTED, ui.regular,
-            ),
-            ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) },
-        )
+        val (main, details) = when (w.sport) {
+            Sport.ELLIPTICAL ->
+                "${formatTime(w.movingMs)}   ·   ${formatNum(w.distanceKm, 2)} km   ·   ${formatNum(w.kcal, 0)} kcal" to
+                    "átlag ${formatNum(w.avgSpeed, 1)} km/h   ·   max ${formatNum(w.maxSpeed, 1)} km/h   ·   fokozat ${w.level}"
+            Sport.WEIGHTS -> {
+                val s = Db.get(this).liftSummary(w.id)
+                "${formatTime(w.movingMs)}   ·   ${s.doneSets} sorozat   ·   ${formatNum(s.volumeKg, 0)} kg   ·   ~${formatNum(w.kcal, 0)} kcal" to
+                    s.exercises.joinToString(" · ")
+            }
+        }
+        card.addView(ui.text(main, 34, INK, ui.bold), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
+        card.addView(ui.text(details, 19, MUTED, ui.regular), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
         card.setOnLongClickListener {
             confirmDelete(w)
             true
@@ -158,7 +158,7 @@ class LogActivity : KettlerActivity() {
     private fun confirmDelete(w: Workout) {
         AlertDialog.Builder(this)
             .setTitle("Törlöd ezt az edzést?")
-            .setMessage(dateFormat.format(Date(w.startedAt)) + ", " + formatNum(w.distanceKm, 2) + " km")
+            .setMessage(dateFormat.format(Date(w.startedAt)) + ", " + w.label)
             .setPositiveButton("Törlés") { _, _ ->
                 Db.get(this).deleteWorkout(w.id)
                 build()

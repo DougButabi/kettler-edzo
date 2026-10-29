@@ -214,7 +214,13 @@ class SettingsActivity : KettlerActivity() {
         pane.addView(ui.text("Kettler edző", 44, INK, ui.bold))
         val version = packageManager.getPackageInfo(packageName, 0).versionName
         pane.addView(note("Verzió: $version"), ui.fieldLp())
-        pane.addView(note("Kettler Vito XL elliptikus trénerhez. Az edzésnapló csak ezen a tableten tárolódik."), ui.fieldLp())
+        pane.addView(note("Kettler Vito XL elliptikus trénerhez és súlyzós edzéshez. Az edzésnapló csak ezen az eszközön tárolódik."), ui.fieldLp())
+        pane.addView(ui.label("GYAKORLATRAJZOK"), sectionLp())
+        pane.addView(ui.note(
+            "A beépített gyakorlatrajzok forrása a wger.de nyílt adatbázisa. Szerzők: " +
+                Catalog.IMAGE_CREDITS.joinToString("; ") + ". Licenc: Creative Commons Nevezd meg! – Így add tovább!",
+            6,
+        ), ui.fieldLp())
         pane.addView(ui.button("Kilépés az appból", DANGER, Color.WHITE) {
             setResult(RESULT_EXIT)
             finish()

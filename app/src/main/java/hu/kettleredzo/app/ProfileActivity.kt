@@ -106,7 +106,8 @@ class ProfileActivity : KettlerActivity() {
 
     private fun select(p: Profile) {
         Prefs.setCurrentProfileId(this, p.id)
-        openMain()
+        startActivity(Intent(this, SportActivity::class.java))
+        finish()
     }
 
     private fun openMain() {
