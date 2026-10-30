@@ -21,13 +21,6 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
-    <!-- A rutinhoz: a telepített appok listája (melyiket indítsa) -->
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
-    </queries>
 
     <!-- Az ESP32 sima http-n beszél, ezért kell a titkosítatlan forgalom. -->
     <application

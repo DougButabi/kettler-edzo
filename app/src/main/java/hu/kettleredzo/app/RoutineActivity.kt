@@ -1,40 +1,24 @@
 package hu.kettleredzo.app
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.text.InputType
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
-import android.widget.TextView
-import java.util.concurrent.Executors
 
-// Egy profil elliptikus rutinja teljes képernyőn: indítandó app (YouTube-nál link, Kodinál sorozat),
-// fülhallgató és hangerő. A választólisták (appok, sorozatok, fülhallgatók) ugyanitt, a tartalom
-// helyén nyílnak meg, „← Vissza” gombbal.
+// Egy profil elliptikus rutinja teljes képernyőn: fülhallgató és hangerő. Az elliptikus képernyő
+// megnyitásakor fut le. A fülhallgató-lista ugyanitt, a tartalom helyén nyílik meg, „← Vissza” gombbal.
 class RoutineActivity : KettlerActivity() {
     private lateinit var ui: Ui
     private lateinit var profile: Profile
     private lateinit var pane: LinearLayout
     private lateinit var r: Routine
-    private val handler = Handler(Looper.getMainLooper())
-    private val executor = Executors.newSingleThreadExecutor()
-
-    // A szerkesztés közbeni szövegmezők (a választólisták megnyitásakor elmentjük az értéküket)
-    private var linkE: EditText? = null
-    private var portE: EditText? = null
-    private var userE: EditText? = null
-    private var passE: EditText? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,8 +35,7 @@ class RoutineActivity : KettlerActivity() {
         left.addView(ui.text(p.name, 34, INK, ui.bold), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(20) })
         if (!ui.portrait) {
             left.addView(ui.note(
-                "Az elliptikus képernyőn a Rutin gomb futtatja: beállítja a hangerőt, megnézi a fülhallgatót, és a háttérben " +
-                    "elindítja a videót. A Kettler elöl marad; a „Videó ›” gombbal váltasz át.",
+                "Az elliptikus képernyő megnyitásakor beállítja a hangerőt, és szól, ha a fülhallgató nincs csatlakozva.",
                 6,
             ), ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(30) })
         }
@@ -64,66 +47,15 @@ class RoutineActivity : KettlerActivity() {
         render()
     }
 
-    private fun keepFields() {
-        linkE?.let { r = r.copy(link = it.text.toString().trim()) }
-        val port = portE?.text?.toString()?.trim()?.toIntOrNull()
-        if (portE != null && userE != null && passE != null) {
-            Prefs.setKodi(this, port ?: 8080, userE!!.text.toString().trim(), passE!!.text.toString())
-        }
-    }
-
-    private fun clearFields() {
-        linkE = null
-        portE = null
-        userE = null
-        passE = null
-    }
-
     // ---- A rutin ----
 
     private fun render() {
         pane.removeAllViews()
-        clearFields()
-
-        pane.addView(ui.label("APP"))
-        pane.addView(ui.text(r.appName.ifBlank { "Nincs" }, 30, INK, ui.bold), ui.fieldLp())
-        pane.addView(buttonRow("Választás" to { keepFields(); pickApp() }, "Nincs" to { keepFields(); r = r.copy(app = "", appName = ""); render() }),
-            ui.fieldLp())
-
-        if (r.isYouTube) {
-            pane.addView(ui.label("YOUTUBE-LINK (NEM KÖTELEZŐ)"), sectionLp())
-            val e = ui.field(r.link, "pl. https://youtube.com/playlist?list=…", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, true)
-            linkE = e
-            pane.addView(e, ui.fieldLp())
-            pane.addView(ui.note("Egy videó vagy lejátszási lista linkje. Üresen a YouTube kezdőlapja nyílik meg."), ui.fieldLp())
-        }
-        if (r.isKodi) {
-            pane.addView(ui.label("SOROZAT"), sectionLp())
-            pane.addView(ui.text(r.kodiShow.ifBlank { "Nincs (csak elindítja a Kodit)" }, 30, INK, ui.bold), ui.fieldLp())
-            pane.addView(buttonRow("Választás" to { keepFields(); pickShow() }, "Nincs" to { keepFields(); r = r.copy(kodiShowId = -1, kodiShow = ""); render() }),
-                ui.fieldLp())
-            pane.addView(ui.note("A sorozat következő, még nem látott része töltődik be, ott folytatva, ahol abbahagytad."), ui.fieldLp())
-            pane.addView(ui.label("KODI ELÉRÉSE"), sectionLp())
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            portE = ui.field(Prefs.kodiPort(this).toString(), "8080", InputType.TYPE_CLASS_NUMBER, false)
-            userE = ui.field(Prefs.kodiUser(this), "kodi", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, false)
-            passE = ui.field(Prefs.kodiPass(this), "jelszó", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, true)
-            row.addView(portE, ui.lp(0, WRAP_CONTENT, 0.6f))
-            row.addView(userE, ui.lp(0, WRAP_CONTENT, 1f).apply { leftMargin = ui.ipx(16) })
-            row.addView(passE, ui.lp(0, WRAP_CONTENT, 1f).apply { leftMargin = ui.ipx(16) })
-            pane.addView(row, ui.fieldLp())
-            pane.addView(ui.note(
-                "Port, felhasználó, jelszó, ahogy a Kodiban beállítottad: Beállítások › Szolgáltatások › Vezérlés › " +
-                    "„Távvezérlés engedélyezése HTTP-n”. Ez a tablet saját beállítása, minden profilnál ugyanaz.",
-                5,
-            ), ui.fieldLp())
-        }
-
-        pane.addView(ui.label("FÜLHALLGATÓ"), sectionLp())
+        pane.addView(ui.label("FÜLHALLGATÓ"))
         pane.addView(ui.text(r.btName.ifBlank { "Nincs (a tablet hangszórója)" }, 30, INK, ui.bold), ui.fieldLp())
-        pane.addView(buttonRow("Választás" to { keepFields(); pickHeadset() }, "Nincs" to { keepFields(); r = r.copy(bt = "", btName = ""); render() }),
+        pane.addView(buttonRow("Választás" to { pickHeadset() }, "Nincs" to { r = r.copy(bt = "", btName = ""); render() }),
             ui.fieldLp())
-        pane.addView(ui.note("Ha meg van adva, és a Rutin gombnál nincs csatlakozva, szól. Csatlakoztatni a tablet Bluetooth-beállításaiban lehet."),
+        pane.addView(ui.note("Ha meg van adva, és az elliptikus képernyő megnyitásakor nincs csatlakozva, szól. Csatlakoztatni a tablet Bluetooth-beállításaiban lehet."),
             ui.fieldLp())
 
         pane.addView(ui.label("HANGERŐ"), sectionLp())
@@ -153,7 +85,6 @@ class RoutineActivity : KettlerActivity() {
         buttons.addView(View(this), ui.lp(0, 1, 1f))
         buttons.addView(ui.button("Mégse", PILL, INK) { finish() }, ui.lp(ui.ipx(200), ui.ipx(85)))
         buttons.addView(ui.button("Mentés", BAR, Color.WHITE) {
-            keepFields()
             Db.get(this).saveRoutine(profile.id, r)
             Sync.runAsync(this)
             finish()
@@ -165,7 +96,6 @@ class RoutineActivity : KettlerActivity() {
 
     private fun listPage(title: String): LinearLayout {
         pane.removeAllViews()
-        clearFields()
         pane.addView(ui.button("← Vissza", PILL, INK) { render() }, ui.lp(ui.ipx(260), ui.ipx(80)))
         pane.addView(ui.label(title), sectionLp())
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -183,43 +113,6 @@ class RoutineActivity : KettlerActivity() {
         card.addView(ui.text(title, 28, INK, ui.bold))
         subtitle?.let { card.addView(ui.text(it, 18, MUTED, ui.regular), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(4) }) }
         list.addView(card, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(12) })
-    }
-
-    private fun pickApp() {
-        val list = listPage("MELYIK APP INDULJON?")
-        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val apps = packageManager.queryIntentActivities(launcher, 0)
-            .map { it.activityInfo.packageName to it.loadLabel(packageManager).toString() }
-            .filter { it.first != packageName }
-            .distinctBy { it.first }
-            // A YouTube és a Kodi elöl, utána ábécérendben
-            .sortedWith(compareBy({ it.first != Routine.YOUTUBE && it.first != Routine.KODI }, { it.second.lowercase() }))
-        for ((pkg, label) in apps) {
-            item(list, label, null) {
-                r = r.copy(app = pkg, appName = label, link = if (pkg == Routine.YOUTUBE) r.link else "",
-                    kodiShowId = if (pkg == Routine.KODI) r.kodiShowId else -1, kodiShow = if (pkg == Routine.KODI) r.kodiShow else "")
-                render()
-            }
-        }
-    }
-
-    private fun pickShow() {
-        val list = listPage("SOROZAT A KODIBAN")
-        val status = ui.note("Sorozatok lekérése a Kodiból…")
-        list.addView(status)
-        executor.execute {
-            val result = runCatching { Kodi.tvShows(this) }
-            handler.post {
-                if (isFinishing) return@post
-                result.onSuccess { shows ->
-                    status.text = if (shows.isEmpty()) "A Kodi könyvtárában nincs sorozat." else ""
-                    for ((id, title) in shows) item(list, title, null) {
-                        r = r.copy(kodiShowId = id, kodiShow = title)
-                        render()
-                    }
-                }.onFailure { status.text = "Nem sikerült: ${it.message}" }
-            }
-        }
     }
 
     private fun pickHeadset() {

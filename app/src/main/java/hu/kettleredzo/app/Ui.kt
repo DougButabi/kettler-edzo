@@ -185,6 +185,22 @@ class Ui(private val ctx: Context) {
             lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ipx(if (portrait) 16 else 50) })
     }
 
+    // Fekvő nézetben a bal oldali menü gombjai 30%-kal kisebbek (kevesebbet kell görgetni)
+    fun compact(v: TextView) = v.apply { setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize * 0.7f) }
+
+    // A bal oldali sáv tetején, a KETTLER felirat mellett egy „← VISSZA” gomb (görgetés nélkül is elérhető)
+    fun backOnTop(panel: LinearLayout, onBack: () -> Unit) {
+        val logo = panel.getChildAt(0)
+        panel.removeViewAt(0)
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        row.addView(logo, lp(0, WRAP_CONTENT, 1f))
+        row.addView(pill("← VISSZA") { onBack() })
+        panel.addView(row, 0, lp(MATCH_PARENT, WRAP_CONTENT))
+    }
+
     // ---- Álló / fekvő elrendezés ----
     // A tablet mindig fekvő. Telefonon a forgatás szerint vált (lásd KettlerActivity), és álló
     // nézetben a bal-jobb panelek egymás alá kerülnek.

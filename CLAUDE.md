@@ -86,15 +86,15 @@ Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig 
 - Emulátoron nincs pánt, a BLE-részt (csatlakozás, mérés) csak valódi eszközön lehet kipróbálni.
 
 ## Beállítások elrendezése
-- Telefonon állóban a menü külön oldal, egymás alatti gombokkal; egy pont teljes képernyőn nyílik, „← Menü” (és a vissza gomb) visz vissza (`menuMode`). Fekvőben és tableten bal oldalt a menü. A menü alján: Kilépés az appból, ← Vissza.
+- Telefonon állóban a menü külön oldal, egymás alatti gombokkal; egy pont teljes képernyőn nyílik, „← Menü” (és a vissza gomb) visz vissza (`menuMode`). Fekvőben és tableten bal oldalt a menü, 30%-kal kisebb gombokkal (`ui.compact`), a „← VISSZA” a lap tetején a KETTLER mellett (`ui.backOnTop`, a Céloknál is), a menü alján a Kilépés az appból.
 - Kapcsolat: csak „● Kapcsolódva” / „Nincs kapcsolat”, a részletek (cím, hiba, megszakadások) a „Napló” gomb mögött (`showConnectionLog`).
 - Az Edzésmód-választó (`ModeActivity`) telefonon állóban ugyanígy: lista, majd a mód teljes képernyőn.
 - Emulátoros teszt bejelentkezés nélkül: debug build (`assembleDebug`, `ANDROID_USER_HOME=C:\Android\UserHome`), és `run-as` a `shared_prefs/beallitasok.xml`-be egy próbakulccsal. Utána a release-t vissza kell telepíteni (más az aláírás).
 
 ## Rutin profilonként (elliptikus, DB v9)
-- `profiles.routine` (JSON, szinkronizál; ULC `edzes_profiles.routine`), `Routine.kt`: app (csomagnév; YouTube-nál link, Kodinál sorozat), fülhallgató (Bluetooth-cím), médiahangerő %. Szerkesztés: profil szerkesztése › „Rutin beállítása” (`RoutineActivity`, a választólisták a tartalom helyén nyílnak). A rutin mentése külön (`Db.saveRoutine`), hogy a profil mentése ne írja felül.
-- Rutin gomb az elliptikus alsó sávján: hangerő, fülhallgató-ellenőrzés (`AudioManager` kimenetek között a cím), majd az app indítása ÉS ugyanabban a pillanatban a Kettler vissza előre (a háttérből az Android nem engedné vissza). Utána a gomb „Videó ›”, ami előre hozza az appot. Kodi: JSON-RPC a 127.0.0.1:port/jsonrpc-n (Prefs `kodiPort/kodiUser/kodiPass`), a sorozat első nem látott része `Player.Open`-nel; ha a háttérben nem sikerült, a „Videó ›” újrapróbálja.
-- A Kodi-részt emulátoron nem lehetett kipróbálni (nincs Kodi), csak a YouTube-ot.
+- `profiles.routine` (JSON, szinkronizál; ULC `edzes_profiles.routine`), `Routine.kt`: fülhallgató (Bluetooth-cím) és médiahangerő %. Szerkesztés: profil szerkesztése › „Rutin beállítása” (`RoutineActivity`). A mentés külön (`Db.saveRoutine`), hogy a profil mentése ne írja felül.
+- Az elliptikus képernyő megnyitásakor fut (`MainActivity.runRoutine`, nem fut edzés közben és forgatáskor): beállítja a hangerőt, és figyelmeztet, ha a fülhallgató nincs a hangkimenetek között.
+- 2026-10-30-án volt app-indítás (YouTube/Kodi JSON-RPC) és Rutin gomb is, a felhasználó kérésére kivettük (cdee893 commitban megvan, ha kellene).
 
 ## Hangos visszajelzés (2026-10-30)
 - Elliptikusnál és kerékpárnál céllal (táv, kcal, idő, program): negyed / harmad / fél (Beállítások › Hangjelzések, `VoiceEvery`), 95%, utolsó km / perc, cél. Férfi vagy női hang (Prefs `voiceMale`). `Voice.kt`: `Voice.say(kulcs)` véletlen változat, audio focus „duck”-kal; `Milestones` kihagyja a mérföldkövet, ha a következő 30 mp-en belül jönne (a tempóból becsülve).

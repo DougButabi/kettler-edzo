@@ -91,6 +91,7 @@ class SettingsActivity : KettlerActivity() {
         val root = ui.splitRoot()
         val left = ui.sidePanel("Beállítások")
         titleV = left.getChildAt(1) as TextView
+        if (!ui.portrait) ui.backOnTop(left) { finish() }
         // Fekvőben a menü bal oldalt van; telefonon állóban külön oldal, a menüpontok egymás alatt,
         // és a kiválasztott pont teljes képernyőn nyílik meg (a „← Vissza” a menübe visz).
         val nav = if (ui.portrait) LinearLayout(this).apply { orientation = LinearLayout.VERTICAL } else left
@@ -101,18 +102,18 @@ class SettingsActivity : KettlerActivity() {
                     topMargin = ui.ipx(if (lastGroup == null) 34 else 26)
                 })
             }
-            val b = ui.navButton(s.title) { show(s) }
+            val b = ui.navButton(s.title) { show(s) }.also { if (!ui.portrait) ui.compact(it) }
             navButtons[s] = b
-            nav.addView(b, ui.lp(MATCH_PARENT, ui.ipx(if (ui.portrait) 80 else 70)).apply { topMargin = ui.ipx(10) })
+            nav.addView(b, ui.lp(MATCH_PARENT, ui.ipx(if (ui.portrait) 80 else 49)).apply { topMargin = ui.ipx(if (ui.portrait) 10 else 7) })
             lastGroup = s.group
         }
         if (!ui.portrait) left.addView(View(this), ui.lp(MATCH_PARENT, 0, 1f))
-        // Kilépés az appból: a menü alján
-        nav.addView(ui.button("Kilépés az appból", DANGER, Color.WHITE) { exitApp() },
-            ui.lp(MATCH_PARENT, ui.ipx(if (ui.portrait) 80 else 78)).apply { topMargin = ui.ipx(if (ui.portrait) 40 else 20) })
-        nav.addView(ui.button("← Vissza", PILL, INK) { finish() }, ui.lp(MATCH_PARENT, ui.ipx(if (ui.portrait) 80 else 78)).apply {
-            topMargin = ui.ipx(if (ui.portrait) 14 else 20)
-        })
+        // Kilépés az appból: a menü alján. Fekvőben a Vissza a lap tetején van (backOnTop).
+        nav.addView(ui.button("Kilépés az appból", DANGER, Color.WHITE) { exitApp() }.also { if (!ui.portrait) ui.compact(it) },
+            ui.lp(MATCH_PARENT, ui.ipx(if (ui.portrait) 80 else 55)).apply { topMargin = ui.ipx(if (ui.portrait) 40 else 20) })
+        if (ui.portrait) {
+            nav.addView(ui.button("← Vissza", PILL, INK) { finish() }, ui.lp(MATCH_PARENT, ui.ipx(80)).apply { topMargin = ui.ipx(14) })
+        }
         root.addView(if (ui.portrait) left else ScrollView(this).apply {
             isFillViewport = true
             addView(left)

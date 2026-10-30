@@ -54,9 +54,13 @@ class ModeActivity : KettlerActivity() {
         val nav = if (ui.portrait) LinearLayout(this).apply { orientation = LinearLayout.VERTICAL } else left
         val modes = if (bike) WorkoutMode.entries.filter { it != WorkoutMode.PROGRAM } else WorkoutMode.entries
         modes.forEachIndexed { i, m ->
-            val b = ui.navButton(m.title) { open(m) }
+            val b = ui.navButton(m.title) { open(m) }.also { if (!ui.portrait) ui.compact(it) }
             modeButtons[m] = b
-            nav.addView(b, if (ui.portrait) ui.lp(MATCH_PARENT, ui.ipx(80)).apply { topMargin = ui.ipx(if (i == 0) 30 else 10) } else ui.navLp(i == 0))
+            nav.addView(b, if (ui.portrait) {
+                ui.lp(MATCH_PARENT, ui.ipx(80)).apply { topMargin = ui.ipx(if (i == 0) 30 else 10) }
+            } else {
+                ui.lp(MATCH_PARENT, ui.ipx(55)).apply { topMargin = ui.ipx(if (i == 0) 40 else 10) }
+            })
         }
         if (ui.portrait) {
             nav.addView(ui.button("← Vissza", PILL, INK) { finish() }, ui.lp(MATCH_PARENT, ui.ipx(80)).apply { topMargin = ui.ipx(40) })

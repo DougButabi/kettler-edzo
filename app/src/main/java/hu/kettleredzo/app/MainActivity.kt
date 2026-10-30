@@ -50,8 +50,6 @@ class MainActivity : KettlerActivity() {
     private lateinit var mainIcon: ImageView
     private lateinit var mainText: TextView
     private lateinit var finishBtn: View
-    private lateinit var routineBtn: TextView
-    private var routineRan = false // lefutott a rutin: a gomb már a videó appját hozza előre
 
     private val listener: () -> Unit = { render() }
 
@@ -66,6 +64,7 @@ class MainActivity : KettlerActivity() {
         ui = Ui(this).apply { workoutButtons() }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(buildUi())
+        if (savedInstanceState == null && !KettlerState.running) runRoutine()
         if (Prefs.host(this).isBlank()) openSettings()
     }
 
@@ -137,10 +136,6 @@ class MainActivity : KettlerActivity() {
             else -> mainButton(R.drawable.ic_pause, "Szünet")
         }
         finishBtn.visibility = if (s.paused) View.VISIBLE else View.GONE
-        // Rutin gomb, ha a profilnak van rutinja (állóban szünetben a Befejezésnek kell a hely)
-        val routine = Routine.parse(profile.routine)
-        routineBtn.visibility = if (!routine.isEmpty && !(ui.portrait && s.paused)) View.VISIBLE else View.GONE
-        routineBtn.text = if (routineRan && routine.app.isNotBlank()) "Videó ›" else "Rutin"
     }
 
     // A jobb felső nagy mező a módhoz igazodik: eltelt idő, visszaszámlálás vagy programszakasz.
@@ -252,24 +247,15 @@ class MainActivity : KettlerActivity() {
         Sync.runAsync(this)
     }
 
-    // Első nyomásra lefuttatja a rutint (hangerő, fülhallgató, videó a háttérben), utána előre hozza a videó appját.
-    private fun onRoutine() {
-        val r = Routine.parse(profile.routine)
-        if (routineRan && r.app.isNotBlank()) {
-            RoutineRunner.bringApp(this, r)
-            return
-        }
-        val missing = RoutineRunner.run(this, r)
-        routineRan = true
-        render()
-        if (missing != null) {
-            AlertDialog.Builder(this)
-                .setTitle("$missing nincs csatlakoztatva")
-                .setMessage("Kapcsold be a fülhallgatót, vagy csatlakoztasd a Bluetooth-beállításokban.")
-                .setPositiveButton("Bluetooth-beállítások") { _, _ -> startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
-                .setNegativeButton("Rendben", null)
-                .show()
-        }
+    // A profil rutinja a képernyő megnyitásakor: hangerő, és figyelmeztetés, ha a fülhallgató nincs csatlakozva.
+    private fun runRoutine() {
+        val missing = RoutineRunner.run(this, Routine.parse(profile.routine)) ?: return
+        AlertDialog.Builder(this)
+            .setTitle("$missing nincs csatlakoztatva")
+            .setMessage("Kapcsold be a fülhallgatót, vagy csatlakoztasd a Bluetooth-beállításokban.")
+            .setPositiveButton("Bluetooth-beállítások") { _, _ -> startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
+            .setNegativeButton("Rendben", null)
+            .show()
     }
 
     private fun exitApp() {
@@ -519,9 +505,7 @@ class MainActivity : KettlerActivity() {
             })
         }
 
-        // Rutin (a profil beállítása szerint), Befejezés (csak szünetben) és a fő gomb
-        routineBtn = ui.button("Rutin", BAR_LINE, Color.WHITE) { onRoutine() }
-        buttons.addView(routineBtn, ui.lp(ui.ipx(220), ui.ipx(85)).apply { rightMargin = ui.ipx(20) })
+        // Befejezés (csak szünetben) és a fő gomb
         val finish = ui.pillButton(R.drawable.ic_stop, "Befejezés", BAR_LINE, Color.WHITE) {
             finishWorkout()
             render()

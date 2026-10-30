@@ -37,6 +37,7 @@ class GoalsActivity : KettlerActivity() {
         ui = Ui(this).apply { settingsMode() }
         val root = ui.splitRoot()
         val left = ui.sidePanel("Célok")
+        ui.backOnTop(left) { finish() }
         left.addView(ui.text(p.name, 34, INK, ui.bold), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(20) })
         if (!ui.portrait) {
             left.addView(ui.note(
@@ -45,8 +46,6 @@ class GoalsActivity : KettlerActivity() {
                 6,
             ), ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(30) })
         }
-        left.addView(View(this), ui.lp(0, 0, 1f))
-        left.addView(ui.button("← Vissza", PILL, INK) { finish() }, ui.lp(MATCH_PARENT, ui.ipx(85)))
         root.addView(left, ui.sideLp(0.38f))
         pane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         ui.paneLayout(pane)
