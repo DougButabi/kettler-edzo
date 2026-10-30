@@ -85,6 +85,11 @@ Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig 
 - Célok: `goals` tábla (profile_id, sport = elliptical/bike/weights/all, metric = km/min/kcal/count/sets, period = day/week, target), `Goals.kt`, szerkesztés: `GoalsActivity` (a sportválasztó célsorára koppintva vagy a profil szerkesztéséből). Haladás: `Db.goalValue` (a hét hétfőn kezdődik). Szinkronizál (ULC: `edzes_goals`, természetes kulcs profil+sport+mérték+időszak).
 - Emulátoron nincs pánt, a BLE-részt (csatlakozás, mérés) csak valódi eszközön lehet kipróbálni.
 
+## Beállítások elrendezése
+- Telefonon állóban a menü külön oldal, egymás alatti gombokkal; egy pont teljes képernyőn nyílik, „← Menü” (és a vissza gomb) visz vissza (`menuMode`). Fekvőben és tableten bal oldalt a menü. A menü alján: Kilépés az appból, ← Vissza.
+- Kapcsolat: csak „● Kapcsolódva” / „Nincs kapcsolat”, a részletek (cím, hiba, megszakadások) a „Napló” gomb mögött (`showConnectionLog`).
+- Emulátoros teszt bejelentkezés nélkül: debug build (`assembleDebug`, `ANDROID_USER_HOME=C:\Android\UserHome`), és `run-as` a `shared_prefs/beallitasok.xml`-be egy próbakulccsal. Utána a release-t vissza kell telepíteni (más az aláírás).
+
 ## Hangos visszajelzés (2026-10-30)
 - Elliptikusnál és kerékpárnál céllal (táv, kcal, idő, program): negyed / harmad / fél (Beállítások › Hangjelzések, `VoiceEvery`), 95%, utolsó km / perc, cél. Férfi vagy női hang (Prefs `voiceMale`). `Voice.kt`: `Voice.say(kulcs)` véletlen változat, audio focus „duck”-kal; `Milestones` kihagyja a mérföldkövet, ha a következő 30 mp-en belül jönne (a tempóból becsülve).
 - A hangfájlok előre legenerálva: `tools/hangok.py` (Microsoft Edge felolvasó, `pip install edge-tts`, hangok hu-HU-TamasNeural / hu-HU-NoemiNeural) -> `res/raw/v_<m|f>_<kulcs>_<n>.mp3`. Új mondatnál a listát bővítsd, és futtasd újra (a meglévőket nem írja felül).
