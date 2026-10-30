@@ -453,6 +453,7 @@ class SettingsActivity : KettlerActivity() {
         pane.addView(ui.text("Kettler edző", 44, INK, ui.bold))
         val version = packageManager.getPackageInfo(packageName, 0).versionName
         pane.addView(note("Verzió: $version"), ui.fieldLp())
+        buildUpdate()
         pane.addView(note("Elliptikus tréner, súlyzós edzés és kerékpár. Az edzések az otthoni szerverrel (ULC) szinkronizálódnak."), ui.fieldLp())
         pane.addView(ui.label("GYAKORLATRAJZOK"), sectionLp())
         pane.addView(ui.note(
@@ -469,6 +470,44 @@ class SettingsActivity : KettlerActivity() {
         pane.addView(ui.button("Kilépés az appból", DANGER, Color.WHITE) { exitApp() },
             ui.lp(ui.ipx(340), ui.ipx(85)).apply { topMargin = ui.ipx(48) })
         pane.addView(note("Ha fut edzés, előbb elmenti. Leállítja a háttérben futó kapcsolatot is."), ui.fieldLp())
+    }
+
+    // Frissítés gomb: megnézi a GitHubon a legújabb kiadást, és ha újabb, letölti és telepíti.
+    private fun buildUpdate() {
+        val status = note("")
+        lateinit var button: TextView
+        var latest: Long? = null
+        button = ui.button("Frissítés keresése", PILL, INK) {
+            val target = latest
+            if (target == null) {
+                status.text = "Keresés…"
+                Updater.latest { n, error ->
+                    if (isFinishing) return@latest
+                    when {
+                        n == null -> status.text = "Nem sikerült: $error"
+                        n <= Updater.currentBuild(this) -> status.text = "Ez a legújabb verzió."
+                        else -> {
+                            latest = n
+                            status.text = "Van újabb: 0.8.$n"
+                            button.text = "Letöltés és telepítés"
+                        }
+                    }
+                }
+                return@button
+            }
+            // Az első telepítés előtt az Android engedélyt kér („Ismeretlen alkalmazások telepítése”).
+            if (!packageManager.canRequestPackageInstalls()) {
+                status.text = "Engedélyezd a telepítést a Kettler edzőnek, aztán nyomd meg újra."
+                startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                return@button
+            }
+            status.text = "Letöltés…"
+            Updater.install(this, { pct -> if (!isFinishing) status.text = "Letöltés… $pct%" }) { error ->
+                if (!isFinishing) status.text = "Nem sikerült: $error"
+            }
+        }
+        pane.addView(button, ui.lp(ui.ipx(420), ui.ipx(85)).apply { topMargin = ui.ipx(24) })
+        pane.addView(status, ui.fieldLp())
     }
 
     // Az elliptikus edzést az edzésképernyő menti el (RESULT_EXIT); máshonnan itt zárjuk be az appot.

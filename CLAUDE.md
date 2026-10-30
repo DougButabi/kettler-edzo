@@ -28,6 +28,7 @@ Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig 
 - Nincs helyi Android SDK. A fordítás GitHub Actionsben fut (`.github/workflows/apk.yml`) minden `main`-re pusholáskor.
 - Repo: `DougButabi/kettler-edzo` (public). A kész APK állandó linkje (a felhasználó a tableten innen telepít):
   `https://github.com/DougButabi/kettler-edzo/releases/download/legujabb/kettler-edzo.apk`
+- Frissítés az appból (Beállítások › Névjegy › Frissítés keresése, `Updater.kt`): a kiadás címéből („Legújabb build (#N)”) olvassa a sorszámot, összeveti a versionCode-dal, letölti az APK-t és `PackageInstaller`-rel telepíti (`UpdateReceiver` nyitja meg a megerősítést). A kiadás címének formátumát ezért ne változtasd meg a workflow-ban. Emulátoron a GitHub nem érhető el (a PC hálózata saját tanúsítvánnyal bontja a HTTPS-t), ezt csak valódi eszközön lehet kipróbálni.
 - Aláírás: fix kulcs a `keystore/kettler.jks`-ben (az első Actions-futás hozta létre). Ne cseréld, különben a frissítés nem települ az előző verzióra.
 - `versionCode` = Actions run number, `versionName` = `0.x.<run>` (`app/build.gradle.kts`). Új funkciócsomagnál emeld a középső számot.
 - Munkafolyamat: commit → push a `main`-re (a felhasználó így kapja az APK-t) → `gh run watch <id> --exit-status`, hiba esetén `gh run view <id> --log-failed`, keresd az `e:` sorokat. A git/gh hálózati parancsok a Claude Code sandboxából nem érik el a GitHubot, sandbox nélkül kell futtatni őket.

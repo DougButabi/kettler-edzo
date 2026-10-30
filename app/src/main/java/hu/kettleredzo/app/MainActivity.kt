@@ -300,7 +300,7 @@ class MainActivity : KettlerActivity() {
 
     private fun buildTopBar(): View {
         // A profil neve nagyban; koppintásra profilváltás
-        nameV = ui.text(profile.name, 46, INK, ui.bold).apply { setOnClickListener { onProfileName() } }
+        nameV = ui.text(profile.name, 69, INK, ui.bold).apply { setOnClickListener { onProfileName() } }
         modePill = ui.buttonText("", 20, INK).apply {
             background = ui.rounded(PILL, 30)
             setPadding(ui.ipx(40), ui.ipx(14), ui.ipx(40), ui.ipx(14))
@@ -435,7 +435,6 @@ class MainActivity : KettlerActivity() {
         val gap = if (ui.portrait) 28 else 55
 
         // Ellenállás: a gép nem méri, kézzel állítjuk
-        bar.addView(ui.icon(R.drawable.ic_bars, 44, Color.WHITE))
         val levelCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -454,7 +453,7 @@ class MainActivity : KettlerActivity() {
         levelRow.addView(levelV)
         levelRow.addView(ui.roundButton("+") { changeLevel(1) })
         levelCol.addView(levelRow, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(6) })
-        bar.addView(levelCol, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { leftMargin = ui.ipx(if (ui.portrait) 16 else 30) })
+        bar.addView(levelCol, ui.lp(WRAP_CONTENT, WRAP_CONTENT))
 
         bar.addView(ui.line(BAR_LINE), ui.lp(1, ui.ipx(80)).apply {
             leftMargin = ui.ipx(gap)

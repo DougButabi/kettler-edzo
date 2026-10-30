@@ -70,6 +70,17 @@ class SportActivity : KettlerActivity() {
         setContentView(root)
     }
 
+    // Közös eszközön a vissza gomb a profilválasztóra visz, nem lép ki az appból.
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (Prefs.personal(this)) {
+            super.onBackPressed()
+            return
+        }
+        startActivity(Intent(this, ProfileActivity::class.java))
+        finish()
+    }
+
     private fun liftCaption(profileId: Long): String =
         if (Db.get(this).activeLift(profileId) != null) "Van folyamatban lévő edzésed" else "Edzésterv, sorozatok, pihenő"
 
@@ -87,13 +98,16 @@ class SportActivity : KettlerActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = if (portrait) Gravity.START else Gravity.CENTER_HORIZONTAL
         }
-        text.addView(ui.text(title, if (portrait) 38 else 40, INK, ui.bold).apply { maxLines = 2 })
-        text.addView(ui.text(caption, 22, MUTED, ui.regular).apply { maxLines = 2 },
-            ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(10) })
+        // Fekvőben a felirat a csempe teljes szélességét kapja, különben a cím (pl. „Elliptikus tréner”) levágódik.
+        val align = if (portrait) Gravity.START else Gravity.CENTER_HORIZONTAL
+        text.addView(ui.text(title, if (portrait) 38 else 40, INK, ui.bold).apply { maxLines = 2; gravity = align },
+            ui.lp(MATCH_PARENT, WRAP_CONTENT))
+        text.addView(ui.text(caption, 22, MUTED, ui.regular).apply { maxLines = 2; gravity = align },
+            ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(10) })
         card.addView(text, if (portrait) {
             ui.lp(0, WRAP_CONTENT, 1f).apply { leftMargin = ui.ipx(28) }
         } else {
-            ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) }
+            ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) }
         })
         return card
     }

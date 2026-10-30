@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Wifi-zárolás: edzés közben ne aludjon el a wifi (ESP-kapcsolat) -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Frissítés az appon belül (Beállítások › Névjegy) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Az ESP32 sima http-n beszél, ezért kell a titkosítatlan forgalom. -->
     <application
@@ -92,6 +94,10 @@
 
         <activity
             android:name=".TrackActivity"
+            android:exported="false" />
+
+        <receiver
+            android:name=".UpdateReceiver"
             android:exported="false" />
 
         <service
