@@ -240,7 +240,7 @@ object Sync {
 
     // Melyik tábla melyik oszlopa hivatkozik az adott táblára (összefésüléskor ezeket írjuk át)
     private val CHILDREN = mapOf(
-        "profiles" to listOf("workouts" to "profile_id", "plan_days" to "profile_id"),
+        "profiles" to listOf("workouts" to "profile_id", "plan_days" to "profile_id", "goals" to "profile_id"),
         "equipment" to listOf("exercises" to "equipment_id"),
         "exercises" to listOf("plan_items" to "exercise_id", "workout_sets" to "exercise_id"),
         "plan_days" to listOf("plan_items" to "day_id"),
