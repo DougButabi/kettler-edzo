@@ -94,8 +94,8 @@ class SportActivity : KettlerActivity() {
 
     override fun onResume() {
         super.onResume()
-        // A sportválasztón nem edz senki: a pulzuspántot elengedjük, hogy más eszköz is használhassa.
-        if (!KettlerState.running && !BikeState.running) HeartRate.disconnect()
+        // A pulzuspánt már itt csatlakozik, hogy az edzés indulásakor kész legyen (a kapcsolat megmarad).
+        HeartRate.connect(this)
         renderGoals()
     }
 

@@ -21,8 +21,8 @@ import java.util.UUID
 import kotlin.math.max
 
 // Pulzusmérő pánt (pl. Magene) a szabványos Bluetooth LE pulzus-szolgáltatáson (0x180D) át.
-// Az edzésképernyő megnyitásakor rácsatlakozunk (connect), a befejezéskor és a sportválasztóra
-// visszatérve lecsatlakozunk (disconnect), hogy a pánt szabad legyen más eszköznek.
+// A sportválasztón és az edzésképernyőkön rácsatlakozunk (connect), és kapcsolódva maradunk;
+// csak a Kilépés az appból bontja (disconnect). Kiesés után magától újrapróbálkozik.
 //
 // Edzés közben egy munkamenet gyűjti az adatokat (begin … stats): átlag- és maximumpulzus,
 // 5 másodpercenkénti görbe, és a pulzusból számolt kalória (Keytel-képlet). Az, hogy épp
@@ -61,6 +61,17 @@ object HeartRate {
     private fun notifyChanged() = listeners.toList().forEach { it() }
 
     fun paired(c: Context) = Prefs.hrAddress(c).isNotBlank()
+
+    // Az edzésképernyők szív ikonjának színe: piros, ha jön a pulzus; csatlakozás közben pirosan villog
+    // (félmásodpercenként halvány); null, ha nincs pánt vagy nem is próbálunk csatlakozni.
+    fun heartColor(): Int? = when {
+        bpm != null -> HEART
+        wanted -> if ((SystemClock.elapsedRealtime() / 500) % 2 == 0L) HEART else HEART_DIM
+        else -> null
+    }
+
+    private val HEART = android.graphics.Color.parseColor("#E53935")
+    private val HEART_DIM = android.graphics.Color.parseColor("#F3B4B2")
 
     fun permissions(): Array<String> = if (Build.VERSION.SDK_INT >= 31) {
         arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)

@@ -174,9 +174,6 @@ class SettingsActivity : KettlerActivity() {
         KettlerState.removeListener(listener)
         HeartRate.removeListener(hrListener)
         stopScan()
-        // A pántot csak edzés közben tartjuk: a próbakapcsolatot elengedjük (folyamatban lévő súlyzós edzésnél
-        // a LiftActivity úgyis újra rácsatlakozik).
-        if (isFinishing && !KettlerState.running && !BikeState.running) HeartRate.disconnect()
         // Kilépéskor a beállításokban (pl. edzésterv, gyakorlatok) tett változások mennek a ULC-be.
         if (isFinishing) Sync.runAsync(this)
         super.onPause()
@@ -617,8 +614,8 @@ class SettingsActivity : KettlerActivity() {
         foundList = list
         pane.addView(list, ui.fieldLp())
         pane.addView(note(
-            "Vedd fel a pántot (bőrkontaktus kell, hogy bekapcsoljon), és nyomd meg a Keresést. Edzés indításakor az app " +
-                "magától rácsatlakozik, a befejezéskor lecsatlakozik, így a pánt szabad lesz más eszköznek. Ha egy másik " +
+            "Vedd fel a pántot (bőrkontaktus kell, hogy bekapcsoljon), és nyomd meg a Keresést. Az app magától " +
+                "rácsatlakozik, és kapcsolódva marad, amíg a Kilépés az appból gombbal ki nem lépsz. Ha egy másik " +
                 "eszköz (pl. a gyártó appja vagy egy óra) épp használja, előbb ott bontsd a kapcsolatot.",
         ), sectionLp())
         pane.addView(note(
@@ -776,6 +773,7 @@ class SettingsActivity : KettlerActivity() {
             return
         }
         stopService(Intent(this, WorkoutService::class.java))
+        HeartRate.disconnect()
         finishAffinity()
     }
 

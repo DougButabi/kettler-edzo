@@ -50,6 +50,16 @@ class RideActivity : KettlerActivity() {
     private lateinit var climbV: TextView
     private lateinit var kcalV: TextView
     private lateinit var hrV: TextView
+    private var heartIcon: android.widget.ImageView? = null
+    private val blink = android.os.Handler(android.os.Looper.getMainLooper())
+
+    // A szív ikon félmásodpercenként frissül (csatlakozás közben villog)
+    private val heartTick = object : Runnable {
+        override fun run() {
+            heartIcon?.imageTintList = android.content.res.ColorStateList.valueOf(HeartRate.heartColor() ?: INK)
+            blink.postDelayed(this, 500)
+        }
+    }
     private lateinit var statusV: TextView
     private lateinit var followBtn: TextView
     private lateinit var mainIcon: ImageView
@@ -85,12 +95,14 @@ class RideActivity : KettlerActivity() {
         }
         map.onResume()
         HeartRate.connect(this)
+        blink.post(heartTick)
         drawnPoints = -1 // a teljes útvonalat újrarajzoljuk
         BikeState.addListener(listener)
         render()
     }
 
     override fun onPause() {
+        blink.removeCallbacks(heartTick)
         if (::ui.isInitialized) {
             BikeState.removeListener(listener)
             map.onPause()
@@ -216,7 +228,6 @@ class RideActivity : KettlerActivity() {
         val hr = HeartRate.stats(s.estKcal, s.movingMs)
         s.finish()
         HeartRate.end()
-        HeartRate.disconnect()
         stopService(Intent(this, BikeService::class.java))
         if (s.movingMs < MIN_SAVED_MS) {
             ui.toast("1 percnél rövidebb tekerést nem mentek el.")
@@ -397,7 +408,9 @@ class RideActivity : KettlerActivity() {
         if (HeartRate.paired(this)) {
             hrV = ui.text("–", small, INK, ui.bold)
             panel.addView(tileRow(tile(R.drawable.ic_bars, "SZINT", climbV, "m"), tile(R.drawable.ic_fire, "KALÓRIA", kcalV, "kcal"),
-                tile(R.drawable.ic_heart, "PULZUS", hrV, "bpm")))
+                tile(R.drawable.ic_heart, "PULZUS", hrV, "bpm").also {
+                    heartIcon = ((it as LinearLayout).getChildAt(0) as LinearLayout).getChildAt(0) as android.widget.ImageView
+                }))
         } else {
             panel.addView(tileRow(tile(R.drawable.ic_bars, "SZINT", climbV, "m"), tile(R.drawable.ic_fire, "KALÓRIA", kcalV, "kcal")))
         }

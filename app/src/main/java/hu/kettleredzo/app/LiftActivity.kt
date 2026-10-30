@@ -329,9 +329,15 @@ class LiftActivity : KettlerActivity() {
         val now = System.currentTimeMillis()
         val elapsed = now - workout.startedAt
         elapsedV.text = formatTime(elapsed)
-        val hr = HeartRate.bpm?.let { "♥ $it bpm   ·   " } ?: ""
         val kcal = HeartRate.kcal(Lifting.kcal(profile.weightKg, elapsed), elapsed)
-        kcalV.text = hr + if (HeartRate.paired(this)) "${formatNum(kcal, 0)} kcal" else "~${formatNum(kcal, 0)} kcal (becslés)"
+        val text = android.text.SpannableStringBuilder()
+        // A szív: piros, ha jön a pulzus; csatlakozás közben villog
+        HeartRate.heartColor()?.let { color ->
+            text.append("♥", android.text.style.ForegroundColorSpan(color), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            text.append(HeartRate.bpm?.let { " $it bpm" } ?: " …").append("   ·   ")
+        }
+        text.append(if (HeartRate.paired(this)) "${formatNum(kcal, 0)} kcal" else "~${formatNum(kcal, 0)} kcal (becslés)")
+        kcalV.text = text
         if (restEndAt == 0L) return
         val left = restEndAt - now
         restV.text = formatTimeUp(max(0L, left))
@@ -358,7 +364,6 @@ class LiftActivity : KettlerActivity() {
                 .setPositiveButton("Elvetés") { _, _ ->
                     Db.get(this).discardLift(workout.id)
                     HeartRate.end()
-                    HeartRate.disconnect()
                     finish()
                 }
                 .setNegativeButton("Mégse", null)
@@ -438,7 +443,6 @@ class LiftActivity : KettlerActivity() {
         val db = Db.get(this)
         val hr = HeartRate.stats(Lifting.kcal(profile.weightKg, ms), ms)
         HeartRate.end()
-        HeartRate.disconnect()
         db.updateWorkout(
             workout.copy(
                 movingMs = ms,

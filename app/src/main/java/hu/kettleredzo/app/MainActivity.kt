@@ -41,6 +41,16 @@ class MainActivity : KettlerActivity() {
     private lateinit var percentV: TextView
     private lateinit var goalV: TextView
     private lateinit var hrV: TextView
+    private lateinit var heartIcon: ImageView
+    private val blink = android.os.Handler(android.os.Looper.getMainLooper())
+
+    // A szív ikon félmásodpercenként frissül (csatlakozás közben villog)
+    private val heartTick = object : Runnable {
+        override fun run() {
+            heartIcon.imageTintList = android.content.res.ColorStateList.valueOf(HeartRate.heartColor() ?: INK)
+            blink.postDelayed(this, 500)
+        }
+    }
     private lateinit var avgV: TextView
     private lateinit var distV: TextView
     private lateinit var kcalV: TextView
@@ -91,12 +101,14 @@ class MainActivity : KettlerActivity() {
         nameV.text = p.name
         Prefs.applyMode(this)
         HeartRate.connect(this)
+        blink.post(heartTick)
         KettlerState.addListener(listener)
         startForegroundService(Intent(this, WorkoutService::class.java))
         render()
     }
 
     override fun onPause() {
+        blink.removeCallbacks(heartTick)
         KettlerState.removeListener(listener)
         super.onPause()
     }
@@ -218,7 +230,6 @@ class MainActivity : KettlerActivity() {
         val hr = HeartRate.stats(s.workoutKm * KettlerState.KCAL_PER_KM, s.movingMs)
         s.finish()
         HeartRate.end()
-        HeartRate.disconnect()
         if (s.movingMs < MIN_SAVED_MS) {
             ui.toast("1 percnél rövidebb edzést nem mentek el.")
             return
@@ -260,6 +271,7 @@ class MainActivity : KettlerActivity() {
 
     private fun exitApp() {
         finishWorkout()
+        HeartRate.disconnect()
         stopService(Intent(this, WorkoutService::class.java))
         finishAndRemoveTask()
     }
@@ -399,7 +411,7 @@ class MainActivity : KettlerActivity() {
         hrV = ui.text("–", SMALL_VALUE, INK, ui.bold)
         avgV = ui.text("0,0", SMALL_VALUE, INK, ui.bold)
         panel.addView(tileRow(
-            tile(R.drawable.ic_heart, "PULZUS", hrV, "bpm"),
+            tile(R.drawable.ic_heart, "PULZUS", hrV, "bpm").also { heartIcon = iconOf(it) },
             tile(R.drawable.ic_trend, "ÁTLAGSEBESSÉG", avgV, "km/h"),
         ))
         panel.addView(ui.line(), ui.lp(MATCH_PARENT, 1).apply {
@@ -425,6 +437,9 @@ class MainActivity : KettlerActivity() {
         row.addView(b, ui.lp(0, WRAP_CONTENT, 1f))
         return row
     }
+
+    // A csempe fejlécének ikonja (a pulzus szívének színezéséhez)
+    private fun iconOf(tile: View) = ((tile as LinearLayout).getChildAt(0) as LinearLayout).getChildAt(0) as ImageView
 
     private fun tile(iconRes: Int, title: String, value: TextView, unit: String): View {
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
