@@ -30,7 +30,7 @@ object Sync {
 
     // Függőségi sorrendben: előbb a szülő
     private val TABLES = listOf(
-        Table("profiles", listOf("name", "birth_year", "weight_kg", "sex")),
+        Table("profiles", listOf("name", "birth_year", "weight_kg", "sex", "routine")),
         Table("equipment", listOf("name", "image", "seed_key")),
         Table("exercises", listOf("name", "image", "seed_key"), mapOf("equipment_id" to ("equipment_uuid" to "equipment"))),
         Table("plan_days", listOf("letter", "position"), mapOf("profile_id" to ("profile_uuid" to "profiles"))),

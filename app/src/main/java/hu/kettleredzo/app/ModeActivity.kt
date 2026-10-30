@@ -25,6 +25,12 @@ class ModeActivity : KettlerActivity() {
     private var goalField: EditText? = null
     private var errorV: TextView? = null
 
+    // Telefon, álló: a módok listája és a kiválasztott mód beállításai felváltva látszanak
+    private lateinit var titleV: TextView
+    private var menuView: View? = null
+    private var contentView: View? = null
+    private var menuMode = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         bike = intent.getStringExtra(EXTRA_SPORT) == Sport.BIKE.code
@@ -43,27 +49,70 @@ class ModeActivity : KettlerActivity() {
 
         val root = ui.splitRoot()
         val left = ui.sidePanel("Edzésmód")
-        val nav = ui.nav(left)
+        titleV = left.getChildAt(1) as TextView
+        // Telefonon állóban a módok egymás alatt, külön oldalon; a kiválasztott mód teljes képernyőn nyílik.
+        val nav = if (ui.portrait) LinearLayout(this).apply { orientation = LinearLayout.VERTICAL } else left
         val modes = if (bike) WorkoutMode.entries.filter { it != WorkoutMode.PROGRAM } else WorkoutMode.entries
         modes.forEachIndexed { i, m ->
-            val b = ui.navButton(m.title) { select(m) }
+            val b = ui.navButton(m.title) { open(m) }
             modeButtons[m] = b
-            nav.addView(b, ui.navLp(i == 0))
+            nav.addView(b, if (ui.portrait) ui.lp(MATCH_PARENT, ui.ipx(80)).apply { topMargin = ui.ipx(if (i == 0) 30 else 10) } else ui.navLp(i == 0))
+        }
+        if (ui.portrait) {
+            nav.addView(ui.button("← Vissza", PILL, INK) { finish() }, ui.lp(MATCH_PARENT, ui.ipx(80)).apply { topMargin = ui.ipx(40) })
         }
         root.addView(if (ui.portrait) left else ScrollView(this).apply { addView(left) }, ui.sideLp(0.36f))
 
         pane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         ui.paneLayout(pane)
-        root.addView(ScrollView(this).apply { addView(pane) }, ui.mainLp(0.64f))
+        val paneScroll = ScrollView(this).apply { addView(pane) }
+        root.addView(paneScroll, ui.mainLp(0.64f))
+        if (ui.portrait) {
+            nav.setPadding(ui.ipx(35 + ui.edge), 0, ui.ipx(35 + ui.edge), ui.ipx(40))
+            val menu = ScrollView(this).apply { addView(nav) }
+            root.addView(menu, ui.mainLp(0.64f))
+            menuView = menu
+            contentView = paneScroll
+            menuMode = savedInstanceState?.getBoolean(STATE_MENU) ?: true
+        }
         setContentView(root)
         select(mode)
+        applyMenuMode()
         savedInstanceState?.getString(STATE_GOAL)?.let { goalField?.setText(it) }
+    }
+
+    private fun open(m: WorkoutMode) {
+        select(m)
+        if (ui.portrait) {
+            menuMode = false
+            applyMenuMode()
+        }
+    }
+
+    private fun applyMenuMode() {
+        if (!ui.portrait) return
+        menuView?.visibility = if (menuMode) View.VISIBLE else View.GONE
+        contentView?.visibility = if (menuMode) View.GONE else View.VISIBLE
+        titleV.text = if (menuMode) "Edzésmód" else mode.title
+        // A listában az aktuális mód ki van emelve
+        modeButtons.forEach { (k, v) -> ui.setChosen(v, k == mode) }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (ui.portrait && !menuMode) {
+            menuMode = true
+            applyMenuMode()
+        } else {
+            super.onBackPressed()
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString(STATE_MODE, mode.code)
         outState.putInt(STATE_WEEK, week)
+        outState.putBoolean(STATE_MENU, menuMode)
         goalField?.let { outState.putString(STATE_GOAL, it.text.toString()) }
     }
 
@@ -93,7 +142,15 @@ class ModeActivity : KettlerActivity() {
         pane.addView(errorV, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
         val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         buttons.addView(View(this), ui.lp(0, 1, 1f))
-        buttons.addView(ui.button("Mégse", PILL, INK) { finish() }, ui.lp(ui.ipx(200), ui.ipx(85)))
+        // Telefonon állóban a Mégse a módok listájára visz vissza
+        buttons.addView(ui.button(if (ui.portrait) "← Vissza" else "Mégse", PILL, INK) {
+            if (ui.portrait) {
+                menuMode = true
+                applyMenuMode()
+            } else {
+                finish()
+            }
+        }, ui.lp(ui.ipx(if (ui.portrait) 240 else 200), ui.ipx(85)))
         buttons.addView(ui.button("Kiválasztom", BAR, Color.WHITE) { choose() }, ui.lp(ui.ipx(300), ui.ipx(85)).apply {
             leftMargin = ui.ipx(20)
         })
@@ -213,6 +270,7 @@ class ModeActivity : KettlerActivity() {
     }
 
     companion object {
+        private const val STATE_MENU = "menu"
         const val EXTRA_SPORT = "sport"
         private const val STATE_MODE = "mode"
         private const val STATE_WEEK = "week"

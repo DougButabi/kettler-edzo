@@ -122,6 +122,10 @@ class ProfileEditActivity : KettlerActivity() {
             form.addView(ui.button("Célok beállítása ›", PILL, INK) {
                 startActivity(android.content.Intent(this, GoalsActivity::class.java).putExtra(GoalsActivity.EXTRA_PROFILE_ID, p.id))
             }, ui.lp(ui.ipx(400), ui.ipx(85)).apply { topMargin = ui.ipx(12) })
+            form.addView(ui.label("RUTIN (ELLIPTIKUS)"), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(36) })
+            form.addView(ui.button("Rutin beállítása ›", PILL, INK) {
+                startActivity(android.content.Intent(this, RoutineActivity::class.java).putExtra(RoutineActivity.EXTRA_PROFILE_ID, p.id))
+            }, ui.lp(ui.ipx(400), ui.ipx(85)).apply { topMargin = ui.ipx(12) })
         }
 
         errorV = ui.text("", 22, DANGER, ui.medium)

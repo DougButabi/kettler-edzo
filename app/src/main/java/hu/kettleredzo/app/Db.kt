@@ -33,6 +33,7 @@ data class Profile(
     val birthYear: Int,
     val weightKg: Double,
     val sex: Sex,
+    val routine: String? = null, // az elliptikus rutin JSON-ban (lásd Routine)
 ) {
     val age get() = Calendar.getInstance().get(Calendar.YEAR) - birthYear
     val maxHr get() = 220 - age
@@ -75,7 +76,7 @@ data class LiftSummary(val doneSets: Int, val totalSets: Int, val volumeKg: Doub
 // Helyi adatbázis: profilok, edzésnapló és a súlyzós modul adatai.
 // Szinkronhoz minden táblában: uuid (eszközök között egyedi azonosító), updated_at
 // (utolsó módosítás, ms) és deleted (törlés csak megjelöléssel, hogy a többi eszköz is értesüljön).
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "kettler.db", null, 8) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "kettler.db", null, 9) {
 
     override fun onConfigure(db: SQLiteDatabase) {
         db.setForeignKeyConstraintsEnabled(true)
@@ -106,7 +107,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
                 max_hr INTEGER)""",
         )
         db.execSQL("CREATE INDEX workouts_profile ON workouts(profile_id, started_at)")
-        onUpgrade(db, 1, 8)
+        onUpgrade(db, 1, 9)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -223,6 +224,8 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
                     uuid TEXT NOT NULL UNIQUE, updated_at INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0)""",
             )
         }
+        // 9. verzió: profilonkénti rutin az elliptikushoz
+        if (oldVersion < 9) db.execSQL("ALTER TABLE profiles ADD COLUMN routine TEXT")
     }
 
     // ---- Profilok ----
@@ -245,6 +248,11 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
             put("sex", p.sex.code)
         }
         return save("profiles", p.id, v)
+    }
+
+    // A rutin külön mentődik, hogy a profil szerkesztése ne írja felül
+    fun saveRoutine(profileId: Long, r: Routine) {
+        save("profiles", profileId, ContentValues().apply { if (r.isEmpty) putNull("routine") else put("routine", r.toJson()) })
     }
 
     // A profillal együtt az edzései és az edzésterve is törlődik.
@@ -713,6 +721,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
         birthYear = getInt(getColumnIndexOrThrow("birth_year")),
         weightKg = getDouble(getColumnIndexOrThrow("weight_kg")),
         sex = Sex.of(getString(getColumnIndexOrThrow("sex"))),
+        routine = getString(getColumnIndexOrThrow("routine")),
     )
 
     private fun Cursor.toWorkout() = Workout(

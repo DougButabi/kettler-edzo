@@ -42,6 +42,13 @@ object Prefs {
     fun syncStatus(c: Context): String = prefs(c).getString("syncStatus", "") ?: ""
     fun setSyncStatus(c: Context, value: String) = prefs(c).edit().putString("syncStatus", value).apply()
 
+    // A tableten futó Kodi elérése a rutinhoz (JSON-RPC HTTP-n)
+    fun kodiPort(c: Context): Int = prefs(c).getInt("kodiPort", 8080)
+    fun kodiUser(c: Context): String = prefs(c).getString("kodiUser", "kodi") ?: "kodi"
+    fun kodiPass(c: Context): String = prefs(c).getString("kodiPass", "") ?: ""
+    fun setKodi(c: Context, port: Int, user: String, pass: String) =
+        prefs(c).edit().putInt("kodiPort", port).putString("kodiUser", user).putString("kodiPass", pass).apply()
+
     // A párosított pulzusmérő (Bluetooth LE) címe és neve; üres, ha nincs párosítva
     fun hrAddress(c: Context): String = prefs(c).getString("hrAddress", "") ?: ""
     fun hrName(c: Context): String = prefs(c).getString("hrName", "") ?: ""
