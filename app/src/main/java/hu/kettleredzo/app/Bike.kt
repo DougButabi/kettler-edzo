@@ -38,7 +38,10 @@ object BikeState {
     var speedKmh = 0.0
     var maxSpeedKmh = 0.0
     var elevGain = 0.0
-    var kcal = 0.0
+    var estKcal = 0.0 // sebesség (MET) alapján becsült kalória
+
+    // Pulzuspánttal a pulzusból (Keytel), nélküle a becslés
+    val kcal get() = if (running) HeartRate.kcal(estKcal, movingMs) else estKcal
     var goalReached = false
 
     // Automatikus szünet küszöbe km/h-ban (0 = kikapcsolva); indításkor a beállításból jön.
@@ -108,7 +111,7 @@ object BikeState {
         distanceKm = 0.0
         maxSpeedKmh = 0.0
         elevGain = 0.0
-        kcal = 0.0
+        estKcal = 0.0
         goalReached = false
         points.clear()
         smoothAlt = Double.NaN
@@ -164,7 +167,7 @@ object BikeState {
         if (!hasFix) speedKmh = 0.0
         if (!isCounting || autoPaused) return RideEvent.NONE
         movingMs += dtMs
-        kcal += Cycling.met(speedKmh) * weightKg * dtMs / 3_600_000.0
+        estKcal += Cycling.met(speedKmh) * weightKg * dtMs / 3_600_000.0
         if (!goalReached && goalMet) {
             goalReached = true
             return RideEvent.GOAL

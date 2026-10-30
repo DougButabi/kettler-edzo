@@ -49,6 +49,7 @@ class RideActivity : KettlerActivity() {
     private lateinit var avgV: TextView
     private lateinit var climbV: TextView
     private lateinit var kcalV: TextView
+    private lateinit var hrV: TextView
     private lateinit var statusV: TextView
     private lateinit var followBtn: TextView
     private lateinit var mainIcon: ImageView
@@ -83,6 +84,7 @@ class RideActivity : KettlerActivity() {
             return
         }
         map.onResume()
+        HeartRate.connect(this)
         drawnPoints = -1 // a teljes útvonalat újrarajzoljuk
         BikeState.addListener(listener)
         render()
@@ -112,6 +114,7 @@ class RideActivity : KettlerActivity() {
         avgV.text = formatNum(s.avgSpeedKmh, 1)
         climbV.text = s.elevGain.roundToInt().toString()
         kcalV.text = formatNum(s.kcal, 0)
+        if (::hrV.isInitialized) hrV.text = HeartRate.bpm?.toString() ?: "–"
 
         val (text, color) = when {
             s.gpsError != null -> s.gpsError!! to RED
@@ -210,7 +213,10 @@ class RideActivity : KettlerActivity() {
     // Lezárja a tekerést, és elmenti a naplóba az útvonallal, ha legalább 1 percig tartott.
     private fun finishRide() {
         val s = BikeState
+        val hr = HeartRate.stats(s.estKcal, s.movingMs)
         s.finish()
+        HeartRate.end()
+        HeartRate.disconnect()
         stopService(Intent(this, BikeService::class.java))
         if (s.movingMs < MIN_SAVED_MS) {
             ui.toast("1 percnél rövidebb tekerést nem mentek el.")
@@ -224,8 +230,11 @@ class RideActivity : KettlerActivity() {
                     distanceKm = s.distanceKm,
                     avgSpeed = s.avgSpeedKmh,
                     maxSpeed = s.maxSpeedKmh,
-                    kcal = s.kcal,
+                    kcal = hr.kcal,
                     level = 0,
+                    avgHr = hr.avg,
+                    maxHr = hr.max,
+                    hrSamples = hr.samples,
                     mode = s.mode,
                     goal = if (s.mode == WorkoutMode.FREE) null else s.goal,
                     completed = s.goalReached,
@@ -384,7 +393,14 @@ class RideActivity : KettlerActivity() {
         panel.addView(ui.line(), separatorLp())
         panel.addView(tileRow(tile(R.drawable.ic_place, "TÁV", distV, "km"), tile(R.drawable.ic_trend, "ÁTLAG", avgV, "km/h")))
         panel.addView(ui.line(), separatorLp())
-        panel.addView(tileRow(tile(R.drawable.ic_bars, "SZINT", climbV, "m"), tile(R.drawable.ic_fire, "KALÓRIA", kcalV, "kcal")))
+        // Párosított pulzusmérővel a harmadik sorban a pulzus is látszik
+        if (HeartRate.paired(this)) {
+            hrV = ui.text("–", small, INK, ui.bold)
+            panel.addView(tileRow(tile(R.drawable.ic_bars, "SZINT", climbV, "m"), tile(R.drawable.ic_fire, "KALÓRIA", kcalV, "kcal"),
+                tile(R.drawable.ic_heart, "PULZUS", hrV, "bpm")))
+        } else {
+            panel.addView(tileRow(tile(R.drawable.ic_bars, "SZINT", climbV, "m"), tile(R.drawable.ic_fire, "KALÓRIA", kcalV, "kcal")))
+        }
         return panel
     }
 
@@ -393,14 +409,18 @@ class RideActivity : KettlerActivity() {
         bottomMargin = ui.ipx(if (ui.portrait) 12 else 16)
     }
 
-    private fun tileRow(a: View, b: View): View {
+    private fun tileRow(vararg tiles: View): View {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        row.addView(a, ui.lp(0, WRAP_CONTENT, 1f))
-        row.addView(ui.line(), ui.lp(1, MATCH_PARENT).apply {
-            leftMargin = ui.ipx(30)
-            rightMargin = ui.ipx(30)
-        })
-        row.addView(b, ui.lp(0, WRAP_CONTENT, 1f))
+        val gap = if (tiles.size > 2) 18 else 30
+        tiles.forEachIndexed { i, t ->
+            if (i > 0) {
+                row.addView(ui.line(), ui.lp(1, MATCH_PARENT).apply {
+                    leftMargin = ui.ipx(gap)
+                    rightMargin = ui.ipx(gap)
+                })
+            }
+            row.addView(t, ui.lp(0, WRAP_CONTENT, 1f))
+        }
         return row
     }
 

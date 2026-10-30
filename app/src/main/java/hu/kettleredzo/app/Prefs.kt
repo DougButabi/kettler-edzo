@@ -42,6 +42,12 @@ object Prefs {
     fun syncStatus(c: Context): String = prefs(c).getString("syncStatus", "") ?: ""
     fun setSyncStatus(c: Context, value: String) = prefs(c).edit().putString("syncStatus", value).apply()
 
+    // A párosított pulzusmérő (Bluetooth LE) címe és neve; üres, ha nincs párosítva
+    fun hrAddress(c: Context): String = prefs(c).getString("hrAddress", "") ?: ""
+    fun hrName(c: Context): String = prefs(c).getString("hrName", "") ?: ""
+    fun setHrDevice(c: Context, address: String, name: String) =
+        prefs(c).edit().putString("hrAddress", address).putString("hrName", name).apply()
+
     fun overlay(c: Context): Boolean = prefs(c).getBoolean("overlay", true)
     fun setOverlay(c: Context, value: Boolean) = prefs(c).edit().putBoolean("overlay", value).apply()
 

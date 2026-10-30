@@ -37,14 +37,15 @@ object KettlerState {
     var visibleScreens = 0
     val appVisible get() = visibleScreens > 0
 
-    // Pulzus a pántról (a pánt bekötéséig mindig null)
-    var heartRate: Int? = null
+    // Élő pulzus a pántról (null, ha nincs pánt vagy nem jön adat)
+    val heartRate: Int? get() = HeartRate.bpm
 
     val isMoving get() = connected && rpm > 0.5
     val isCounting get() = running && !paused
 
     val avgSpeedKmh get() = if (movingMs >= 5000) workoutKm / (movingMs / 3_600_000.0) else 0.0
-    val kcal get() = workoutKm * KCAL_PER_KM
+    // Pulzuspánttal a pulzusból (Keytel), nélküle a táv alapján becsült kalória
+    val kcal get() = if (running) HeartRate.kcal(workoutKm * KCAL_PER_KM, movingMs) else workoutKm * KCAL_PER_KM
 
     // Haladás a cél felé, 0..1 (szabad edzésnél 0)
     val progress: Float

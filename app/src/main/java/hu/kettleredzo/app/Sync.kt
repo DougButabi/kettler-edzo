@@ -42,7 +42,7 @@ object Sync {
             "workouts",
             listOf(
                 "started_at", "moving_ms", "distance_km", "avg_speed", "max_speed", "kcal", "level", "avg_hr", "max_hr",
-                "mode", "goal", "program", "completed", "sport", "title", "elev_gain",
+                "mode", "goal", "program", "completed", "sport", "title", "elev_gain", "hr_samples",
             ),
             mapOf("profile_id" to ("profile_uuid" to "profiles")),
         ),
@@ -56,6 +56,7 @@ object Sync {
             ),
         ),
         Table("tracks", listOf("points"), mapOf("workout_id" to ("workout_uuid" to "workouts"))),
+        Table("goals", listOf("sport", "metric", "period", "target"), mapOf("profile_id" to ("profile_uuid" to "profiles"))),
     )
 
     // A folyamatban lévő edzés (és sorozatai, útvonala) csak a befejezés után megy fel.

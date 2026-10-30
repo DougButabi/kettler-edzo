@@ -57,6 +57,7 @@ data class Workout(
     val sport: Sport = Sport.ELLIPTICAL,
     val title: String? = null, // súlyzós edzésnél a nap betűje, pl. "A"
     val elevGain: Double? = null, // kerékpárnál a megtett szintemelkedés (m)
+    val hrSamples: String? = null, // pulzusgörbe: 5 másodpercenkénti bpm-ek JSON-tömbben
 ) {
     val label: String
         get() = when (sport) {
@@ -74,7 +75,7 @@ data class LiftSummary(val doneSets: Int, val totalSets: Int, val volumeKg: Doub
 // Helyi adatbázis: profilok, edzésnapló és a súlyzós modul adatai.
 // Szinkronhoz minden táblában: uuid (eszközök között egyedi azonosító), updated_at
 // (utolsó módosítás, ms) és deleted (törlés csak megjelöléssel, hogy a többi eszköz is értesüljön).
-class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "kettler.db", null, 7) {
+class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "kettler.db", null, 8) {
 
     override fun onConfigure(db: SQLiteDatabase) {
         db.setForeignKeyConstraintsEnabled(true)
@@ -105,7 +106,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
                 max_hr INTEGER)""",
         )
         db.execSQL("CREATE INDEX workouts_profile ON workouts(profile_id, started_at)")
-        onUpgrade(db, 1, 7)
+        onUpgrade(db, 1, 8)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -208,6 +209,20 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
         }
         // 7. verzió: a módosítatlan beépített elemek régi időbélyeget kapnak (lásd Catalog.SEED_TIME)
         if (oldVersion < 7) Catalog.resetSeedTimes(db)
+        // 8. verzió: pulzusgörbe az edzéshez, és profilonkénti napi/heti célok
+        if (oldVersion < 8) {
+            db.execSQL("ALTER TABLE workouts ADD COLUMN hr_samples TEXT")
+            db.execSQL(
+                """CREATE TABLE goals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                    sport TEXT NOT NULL,
+                    metric TEXT NOT NULL,
+                    period TEXT NOT NULL,
+                    target REAL NOT NULL,
+                    uuid TEXT NOT NULL UNIQUE, updated_at INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0)""",
+            )
+        }
     }
 
     // ---- Profilok ----
@@ -244,6 +259,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
                 arg,
             )
             db.execSQL("UPDATE plan_days SET deleted = 1, updated_at = $now WHERE profile_id = ?", arg)
+            db.execSQL("UPDATE goals SET deleted = 1, updated_at = $now WHERE profile_id = ?", arg)
             softDelete("profiles", id)
         }
     }
@@ -274,6 +290,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
         put("sport", w.sport.code)
         put("title", w.title)
         w.elevGain?.let { put("elev_gain", it) }
+        w.hrSamples?.let { put("hr_samples", it) }
     }
 
     // Egy tekerés útvonala: [[lat, lon], …] (üres, ha nincs mentve)
@@ -357,6 +374,59 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
             out[i] += w.movingMs / 60_000.0
         }
         return out
+    }
+
+    // ---- Célok ----
+
+    fun goals(profileId: Long): List<Goal> =
+        readableDatabase.rawQuery(
+            "SELECT * FROM goals WHERE profile_id = ? AND deleted = 0 ORDER BY period, sport, metric",
+            arrayOf(profileId.toString()),
+        ).use { c ->
+            generateSequence {
+                if (c.moveToNext()) {
+                    Goal(
+                        id = c.getLong(c.getColumnIndexOrThrow("id")),
+                        profileId = profileId,
+                        sport = GoalSport.of(c.getString(c.getColumnIndexOrThrow("sport"))),
+                        metric = GoalMetric.of(c.getString(c.getColumnIndexOrThrow("metric"))),
+                        period = GoalPeriod.of(c.getString(c.getColumnIndexOrThrow("period"))),
+                        target = c.getDouble(c.getColumnIndexOrThrow("target")),
+                    )
+                } else {
+                    null
+                }
+            }.toList()
+        }
+
+    fun saveGoal(g: Goal): Long = save("goals", g.id, ContentValues().apply {
+        put("profile_id", g.profileId)
+        put("sport", g.sport.code)
+        put("metric", g.metric.code)
+        put("period", g.period.code)
+        put("target", g.target)
+    })
+
+    fun deleteGoal(id: Long) = softDelete("goals", id)
+
+    // Hol tart a cél az aktuális napon / héten (hétfőtől)
+    fun goalValue(g: Goal): Double {
+        val since = if (g.period == GoalPeriod.DAY) startOfDay() else startOfWeek()
+        if (g.metric == GoalMetric.SETS) {
+            return readableDatabase.rawQuery(
+                """SELECT COUNT(*) FROM workout_sets s JOIN workouts w ON w.id = s.workout_id
+                   WHERE w.profile_id = ? AND w.started_at >= ? AND w.deleted = 0 AND s.deleted = 0 AND s.done = 1""",
+                arrayOf(g.profileId.toString(), since.toString()),
+            ).use { c -> if (c.moveToFirst()) c.getDouble(0) else 0.0 }
+        }
+        val t = totals(g.profileId, since, g.sport.sport)
+        return when (g.metric) {
+            GoalMetric.KM -> t.distanceKm
+            GoalMetric.MIN -> t.movingMs / 60_000.0
+            GoalMetric.KCAL -> t.kcal
+            GoalMetric.COUNT -> t.count.toDouble()
+            GoalMetric.SETS -> 0.0
+        }
     }
 
     // ---- Gépek és gyakorlatok ----
@@ -664,6 +734,7 @@ class Db private constructor(ctx: Context) : SQLiteOpenHelper(ctx.applicationCon
         sport = Sport.of(getString(getColumnIndexOrThrow("sport"))),
         title = getString(getColumnIndexOrThrow("title")),
         elevGain = getColumnIndexOrThrow("elev_gain").let { if (isNull(it)) null else getDouble(it) },
+        hrSamples = getString(getColumnIndexOrThrow("hr_samples")),
     )
 
     private fun Cursor.toEquipment() = Equipment(
@@ -708,6 +779,8 @@ fun dayStarts(days: Int): LongArray {
         t
     }
 }
+
+fun startOfDay(): Long = startOfToday().timeInMillis
 
 fun startOfWeek(): Long {
     val c = startOfToday()

@@ -123,12 +123,17 @@ class TrackActivity : KettlerActivity() {
             formatNum(w.avgSpeed, 1) to "átlag km/h",
             formatNum(w.maxSpeed, 1) to "max km/h",
             (w.elevGain ?: 0.0).roundToInt().toString() to "m szint",
-            formatNum(w.kcal, 0) to "kcal (becslés)",
-        )
+            formatNum(w.kcal, 0) to if (w.avgHr != null) "kcal" else "kcal (becslés)",
+        ) + (w.avgHr?.let { listOf("$it / ${w.maxHr ?: "–"}" to "átl. / max pulzus") } ?: emptyList())
         for (pair in stats.chunked(2)) {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             for ((value, caption) in pair) row.addView(stat(value, caption), ui.lp(0, WRAP_CONTENT, 1f))
             col.addView(row, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(26) })
+        }
+        if (w.hrSamples != null) {
+            col.addView(ui.pill("PULZUSGÖRBE ›") {
+                startActivity(android.content.Intent(this, HrActivity::class.java).putExtra(HrActivity.EXTRA_WORKOUT_ID, w.id))
+            }, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(30) })
         }
         if (pointCount < 2) {
             col.addView(ui.note("Az útvonal azért hiányzik, mert a tekerés alatt nem volt elég GPS-pont."),

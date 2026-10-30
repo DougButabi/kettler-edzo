@@ -157,9 +157,12 @@ class LogActivity : KettlerActivity() {
                     s.exercises.joinToString(" · ")
             }
         }
+        // Pulzuspánttal mért edzésnél az átlag- és maximumpulzus is
+        val hr = w.avgHr?.let { "♥ átlag $it · max ${w.maxHr ?: "–"} bpm" }
+        val details2 = if (hr != null) "$details\n$hr" else details
         // Telefonon a nagy betűkkel több sorba törhet
         card.addView(ui.text(main, 34, INK, ui.bold).apply { maxLines = 3 }, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
-        card.addView(ui.text(details, 19, MUTED, ui.regular).apply { maxLines = 4 }, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
+        card.addView(ui.text(details2, 19, MUTED, ui.regular).apply { maxLines = 5 }, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(8) })
         card.setOnLongClickListener {
             confirmDelete(w)
             true
@@ -171,6 +174,14 @@ class LogActivity : KettlerActivity() {
             })
             card.setOnClickListener {
                 startActivity(Intent(this, TrackActivity::class.java).putExtra(TrackActivity.EXTRA_WORKOUT_ID, w.id))
+            }
+        } else if (w.hrSamples != null) {
+            // A többi sportnál koppintásra a pulzusgörbe
+            card.addView(ui.text("Koppints a pulzusgörbéért ›", 18, MUTED, ui.medium), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
+                topMargin = ui.ipx(8)
+            })
+            card.setOnClickListener {
+                startActivity(Intent(this, HrActivity::class.java).putExtra(HrActivity.EXTRA_WORKOUT_ID, w.id))
             }
         }
         return card

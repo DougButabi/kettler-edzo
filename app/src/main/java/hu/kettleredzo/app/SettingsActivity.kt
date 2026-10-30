@@ -1,13 +1,21 @@
 package hu.kettleredzo.app
 
 import android.app.Activity
+import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.bluetooth.BluetoothManager
+import android.bluetooth.le.BluetoothLeScanner
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.ParcelUuid
 import android.provider.Settings
 import android.text.InputType
 import android.view.Gravity
@@ -42,6 +50,7 @@ class SettingsActivity : KettlerActivity() {
         SIGNALS("Jelzések", Group.BIKE),
         SCREEN("Kijelző", Group.BIKE),
         USERS("Felhasználók", Group.GENERAL),
+        HEART("Pulzusmérő", Group.GENERAL),
         SOUNDS("Hangjelzések", Group.GENERAL),
         ABOUT("Névjegy", Group.GENERAL),
     }
@@ -56,6 +65,11 @@ class SettingsActivity : KettlerActivity() {
     private val handler = Handler(Looper.getMainLooper())
 
     private val listener: () -> Unit = { renderStatus() }
+    private val hrListener: () -> Unit = { renderHeart() }
+    private var hrStatusV: TextView? = null
+    private var foundList: LinearLayout? = null
+    private var scanner: BluetoothLeScanner? = null
+    private val found = linkedMapOf<String, String>() // cím -> név
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -108,11 +122,17 @@ class SettingsActivity : KettlerActivity() {
     override fun onResume() {
         super.onResume()
         KettlerState.addListener(listener)
+        HeartRate.addListener(hrListener)
         show(section) // pl. az overlay-engedély, egy profil vagy az edzésterv közben megváltozhatott
     }
 
     override fun onPause() {
         KettlerState.removeListener(listener)
+        HeartRate.removeListener(hrListener)
+        stopScan()
+        // A pántot csak edzés közben tartjuk: a próbakapcsolatot elengedjük (folyamatban lévő súlyzós edzésnél
+        // a LiftActivity úgyis újra rácsatlakozik).
+        if (isFinishing && !KettlerState.running && !BikeState.running) HeartRate.disconnect()
         // Kilépéskor a beállításokban (pl. edzésterv, gyakorlatok) tett változások mennek a ULC-be.
         if (isFinishing) Sync.runAsync(this)
         super.onPause()
@@ -124,6 +144,9 @@ class SettingsActivity : KettlerActivity() {
         pane.removeAllViews()
         statusV = null
         dropsV = null
+        hrStatusV = null
+        foundList = null
+        if (s != Section.HEART) stopScan()
         when (s) {
             Section.CONNECTION -> buildConnection()
             Section.DISPLAY -> buildDisplay()
@@ -136,6 +159,7 @@ class SettingsActivity : KettlerActivity() {
             Section.SIGNALS -> buildSignals()
             Section.SCREEN -> buildRideScreen()
             Section.USERS -> buildUsers()
+            Section.HEART -> buildHeart()
             Section.SOUNDS -> buildSounds()
             Section.ABOUT -> buildAbout()
         }
@@ -472,6 +496,134 @@ class SettingsActivity : KettlerActivity() {
         pane.addView(note("Ha fut edzés, előbb elmenti. Leállítja a háttérben futó kapcsolatot is."), ui.fieldLp())
     }
 
+    // ---- Pulzusmérő ----
+
+    // Párosítás: keresés (csak a pulzus-szolgáltatást hirdető eszközök), kiválasztás, élő próba.
+    private fun buildHeart() {
+        pane.addView(ui.label("PULZUSMÉRŐ"))
+        val name = Prefs.hrName(this).ifBlank { Prefs.hrAddress(this) }
+        pane.addView(ui.text(if (HeartRate.paired(this)) name else "Nincs párosítva", 34, INK, ui.bold), ui.fieldLp())
+        val status = ui.text("", 24, MUTED, ui.medium)
+        hrStatusV = status
+        pane.addView(status, ui.fieldLp())
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        buttons.addView(ui.button("Keresés", BAR, Color.WHITE) { startScan() }, ui.lp(ui.ipx(260), ui.ipx(85)))
+        if (HeartRate.paired(this)) {
+            buttons.addView(ui.button("Elfelejtés", PILL, INK) {
+                HeartRate.forget(this)
+                show(Section.HEART)
+            }, ui.lp(ui.ipx(260), ui.ipx(85)).apply { leftMargin = ui.ipx(20) })
+        }
+        pane.addView(buttons, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        foundList = list
+        pane.addView(list, ui.fieldLp())
+        pane.addView(note(
+            "Vedd fel a pántot (bőrkontaktus kell, hogy bekapcsoljon), és nyomd meg a Keresést. Edzés indításakor az app " +
+                "magától rácsatlakozik, a befejezéskor lecsatlakozik, így a pánt szabad lesz más eszköznek. Ha egy másik " +
+                "eszköz (pl. a gyártó appja vagy egy óra) épp használja, előbb ott bontsd a kapcsolatot.",
+        ), sectionLp())
+        pane.addView(note(
+            "Pulzussal a kalóriát a pulzusból, életkorból, testsúlyból és nemből számolom (Keytel-képlet), ami pontosabb a becslésnél.",
+        ), ui.fieldLp())
+        // Ezen az oldalon a párosított pántra próbaként rácsatlakozunk, hogy látszódjon a pulzus.
+        HeartRate.connect(this)
+        renderFound()
+        renderHeart()
+    }
+
+    private fun renderHeart() {
+        val v = hrStatusV ?: return
+        val bpm = HeartRate.bpm
+        v.text = when {
+            !HeartRate.paired(this) -> if (scanner != null) "Keresés…" else "Nyomd meg a Keresést."
+            !HeartRate.hasPermission(this) -> "Engedélyezd a Bluetooth-hozzáférést (Keresés gomb)."
+            bpm != null -> "● Kapcsolódva   ·   ♥ $bpm bpm"
+            HeartRate.state == HeartRate.State.CONNECTED -> "● Kapcsolódva, pulzusra vár…"
+            HeartRate.state == HeartRate.State.CONNECTING -> "Kapcsolódás…"
+            else -> "Nincs kapcsolat (be van kapcsolva a pánt?)"
+        }
+    }
+
+    private fun renderFound() {
+        val list = foundList ?: return
+        list.removeAllViews()
+        for ((address, name) in found) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = ui.rounded(CARD, 24)
+                setPadding(ui.ipx(28), ui.ipx(18), ui.ipx(28), ui.ipx(18))
+                setOnClickListener {
+                    stopScan()
+                    HeartRate.disconnect()
+                    Prefs.setHrDevice(this@SettingsActivity, address, name)
+                    found.clear()
+                    show(Section.HEART)
+                }
+            }
+            card.addView(ui.text(name, 30, INK, ui.bold))
+            card.addView(ui.text("Koppints a párosításhoz   ·   $address", 18, MUTED, ui.regular),
+                ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(6) })
+            list.addView(card, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(14) })
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startScan() {
+        if (!HeartRate.hasPermission(this)) {
+            requestPermissions(HeartRate.permissions(), REQ_BLUETOOTH)
+            return
+        }
+        val adapter = getSystemService(BluetoothManager::class.java)?.adapter
+        if (adapter == null || !adapter.isEnabled) {
+            ui.toast("Kapcsold be a Bluetooth-t, aztán nyomd meg újra a Keresést.")
+            return
+        }
+        stopScan()
+        found.clear()
+        renderFound()
+        val s = adapter.bluetoothLeScanner ?: return
+        val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid.fromString(HR_SERVICE)).build()
+        val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
+        s.startScan(listOf(filter), settings, scanCallback)
+        scanner = s
+        hrStatusV?.text = "Keresés… (15 mp)"
+        handler.postDelayed(scanTimeout, 15_000)
+    }
+
+    private val scanTimeout = Runnable {
+        stopScan()
+        if (found.isEmpty()) hrStatusV?.text = "Nem találtam pulzusmérőt. Rajtad van a pánt, és nem csatlakozik máshoz?" else renderHeart()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun stopScan() {
+        handler.removeCallbacks(scanTimeout)
+        val s = scanner ?: return
+        scanner = null
+        try {
+            s.stopScan(scanCallback)
+        } catch (e: Exception) {
+            // a Bluetooth közben kikapcsolhatott
+        }
+    }
+
+    private val scanCallback = object : ScanCallback() {
+        @SuppressLint("MissingPermission")
+        override fun onScanResult(callbackType: Int, result: ScanResult) {
+            val address = result.device.address
+            if (address in found) return
+            found[address] = result.scanRecord?.deviceName ?: result.device.name ?: "Pulzusmérő"
+            renderFound()
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQ_BLUETOOTH) return
+        if (HeartRate.hasPermission(this)) startScan() else ui.toast("Bluetooth-engedély nélkül nem találom a pulzusmérőt.")
+    }
+
     // Frissítés gomb: megnézi a GitHubon a legújabb kiadást, és ha újabb, letölti és telepíti.
     private fun buildUpdate() {
         val status = note("")
@@ -567,6 +719,8 @@ class SettingsActivity : KettlerActivity() {
     }
 
     companion object {
+        private const val REQ_BLUETOOTH = 41
+        private const val HR_SERVICE = "0000180d-0000-1000-8000-00805f9b34fb"
         const val RESULT_EXIT = Activity.RESULT_FIRST_USER + 1
         const val EXTRA_SPORT = "sport"
         private const val STATE_SECTION = "section"

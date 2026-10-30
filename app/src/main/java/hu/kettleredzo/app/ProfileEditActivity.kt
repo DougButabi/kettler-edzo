@@ -116,6 +116,14 @@ class ProfileEditActivity : KettlerActivity() {
         sexRow.addView(femaleBtn, ui.lp(0, ui.ipx(90), 1f).apply { leftMargin = ui.ipx(30) })
         form.addView(sexRow, ui.fieldLp())
 
+        // Meglévő profilnál a célok (napi / heti) külön oldalon
+        if (p != null) {
+            form.addView(ui.label("CÉLOK"), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(36) })
+            form.addView(ui.button("Célok beállítása ›", PILL, INK) {
+                startActivity(android.content.Intent(this, GoalsActivity::class.java).putExtra(GoalsActivity.EXTRA_PROFILE_ID, p.id))
+            }, ui.lp(ui.ipx(400), ui.ipx(85)).apply { topMargin = ui.ipx(12) })
+        }
+
         errorV = ui.text("", 22, DANGER, ui.medium)
         form.addView(errorV, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
 

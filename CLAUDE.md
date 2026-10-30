@@ -79,6 +79,12 @@ Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig 
 - **ULC oldal:** `webapp/src/lib/training.js`, `routes/edzes.js`, `views/edzes.ejs`, `views/edzes-reszletek.ejs` (Ultimate Life Control projekt). Táblák: `edzes_*`, `edzes_meta` (rev), `edzes_devices`. Képek: `data/EdzesKepek`.
 - **Emulátoros teszt:** az emulátor nem éri el a helyi hálózatot, ezért `node C:\Android\proxy.js` (127.0.0.1:8091 → NAS) és `adb reverse tcp:8091 tcp:8091`, az appban a cím `http://127.0.0.1:8091`. A bejelentkezéshez valódi ULC-jelszó kell, azt a felhasználó adja meg (a `C:\Android\setsync.ps1` még a régi, kulcsbeírós oldalhoz készült). Teszt után az éles ULC-ből töröld a tesztadatot és a kulcsot.
 
+## Pulzusmérő és célok (2026-10-30, DB v8)
+- Pulzus: `HeartRate.kt`, szabványos BLE pulzus-szolgáltatás (0x180D / 0x2A37), a felhasználónak Magene pántja van. Párosítás: Beállítások › Általános › Pulzusmérő (keresés csak 0x180D-t hirdető eszközökre; cím/név a Prefs `hrAddress`/`hrName`-ben). Az edzésképernyő (Main, Bike/Ride, Lift) `onResume`-ja rácsatlakozik, a befejezés és a sportválasztó (`SportActivity.onResume`) lecsatlakozik, hogy a pánt szabad legyen.
+- Munkamenet: `HeartRate.begin(kulcs, profil) { számít-e most }` a sport indításakor; a mérésekből átlag/max, 5 mp-es görbe (`workouts.hr_samples`, JSON bpm-tömb) és Keytel-kalória. `HeartRate.kcal(becslés, mozgásidő)`: a pulzusos időre a Keytel-érték, a kiesett részre a sport saját becslése. Naplóban: koppintásra `HrActivity` (görbe), kerékpárnál a `TrackActivity`-ből.
+- Célok: `goals` tábla (profile_id, sport = elliptical/bike/weights/all, metric = km/min/kcal/count/sets, period = day/week, target), `Goals.kt`, szerkesztés: `GoalsActivity` (a sportválasztó célsorára koppintva vagy a profil szerkesztéséből). Haladás: `Db.goalValue` (a hét hétfőn kezdődik). Szinkronizál (ULC: `edzes_goals`, természetes kulcs profil+sport+mérték+időszak).
+- Emulátoron nincs pánt, a BLE-részt (csatlakozás, mérés) csak valódi eszközön lehet kipróbálni.
+
 ## Előzmény: a központi adatbázis eredeti terve
 - **Központi adatbázis:** több eszköz (tablet + Android telefonok), akár házon kívül is.
   - A felhasználónak van egy saját, webes felületű programja (**ULC**, MySQL-lel) a desktop PC-n. Az edzésadatok oda kerüljenek, a webes felületen nagyjából minden látszódjon és szerkeszthető legyen. Hogy ez min fut, és hol van a MySQL (mini PC vagy NAS), azt még ki kell deríteni az ULC-ből.

@@ -15,6 +15,12 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Frissítés az appon belül (Beállítások › Névjegy) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Pulzusmérő pánt (Bluetooth LE). Android 12 alatt a kereséshez helyengedély kell (az már megvan). -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
     <!-- Az ESP32 sima http-n beszél, ezért kell a titkosítatlan forgalom. -->
     <application
@@ -58,6 +64,15 @@
             android:name=".ModeActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustPan|stateHidden" />
+
+        <activity
+            android:name=".GoalsActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustPan|stateHidden" />
+
+        <activity
+            android:name=".HrActivity"
+            android:exported="false" />
 
         <activity
             android:name=".LogActivity"

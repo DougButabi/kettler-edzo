@@ -45,6 +45,7 @@ class BikeActivity : KettlerActivity() {
     override fun onResume() {
         super.onResume()
         if (!::ui.isInitialized) return
+        HeartRate.connect(this)
         Prefs.applyBikeMode(this)
         render()
     }
@@ -112,6 +113,7 @@ class BikeActivity : KettlerActivity() {
         }
         Prefs.applyBikeMode(this)
         BikeState.start(profile, if (Prefs.autoPause(this)) Prefs.autoPauseKmh(this).toDouble() else 0.0)
+        HeartRate.begin("bike:${BikeState.startedAt}", profile) { BikeState.isCounting && !BikeState.autoPaused }
         startForegroundService(Intent(this, BikeService::class.java))
         openRide()
     }

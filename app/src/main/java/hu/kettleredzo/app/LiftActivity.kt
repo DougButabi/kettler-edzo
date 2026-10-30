@@ -67,6 +67,7 @@ class LiftActivity : KettlerActivity() {
         // Az első gyakorlat, amelyikben van még hátralévő sorozat
         current = sets.firstOrNull { !it.done }?.itemPos ?: 0
         Beeper.enabled = Prefs.beeps(this)
+        HeartRate.begin("lift:${w.id}", p) { true }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(buildUi())
         // Forgatás után (telefon) ugyanott folytatjuk, a pihenő is fut tovább.
@@ -87,6 +88,7 @@ class LiftActivity : KettlerActivity() {
 
     override fun onResume() {
         super.onResume()
+        HeartRate.connect(this)
         handler.post(ticker)
     }
 
@@ -327,7 +329,9 @@ class LiftActivity : KettlerActivity() {
         val now = System.currentTimeMillis()
         val elapsed = now - workout.startedAt
         elapsedV.text = formatTime(elapsed)
-        kcalV.text = "~${formatNum(Lifting.kcal(profile.weightKg, elapsed), 0)} kcal (becslés)"
+        val hr = HeartRate.bpm?.let { "♥ $it bpm   ·   " } ?: ""
+        val kcal = HeartRate.kcal(Lifting.kcal(profile.weightKg, elapsed), elapsed)
+        kcalV.text = hr + if (HeartRate.paired(this)) "${formatNum(kcal, 0)} kcal" else "~${formatNum(kcal, 0)} kcal (becslés)"
         if (restEndAt == 0L) return
         val left = restEndAt - now
         restV.text = formatTimeUp(max(0L, left))
@@ -353,6 +357,8 @@ class LiftActivity : KettlerActivity() {
                 .setMessage("Elveted ezt az edzést? Nem kerül be a naplóba.")
                 .setPositiveButton("Elvetés") { _, _ ->
                     Db.get(this).discardLift(workout.id)
+                    HeartRate.end()
+                    HeartRate.disconnect()
                     finish()
                 }
                 .setNegativeButton("Mégse", null)
@@ -369,7 +375,9 @@ class LiftActivity : KettlerActivity() {
         row.addView(stat(formatTime(ms), "idő"), ui.lp(0, WRAP_CONTENT, 1f))
         row.addView(stat("${done.size}/${sets.size}", "sorozat"), ui.lp(0, WRAP_CONTENT, 1f))
         row.addView(stat(formatNum(done.sumOf { it.reps * it.kg }, 0), "kg összesen"), ui.lp(0, WRAP_CONTENT, 1f))
-        row.addView(stat(formatNum(Lifting.kcal(profile.weightKg, ms), 0), "kcal (becslés)"), ui.lp(0, WRAP_CONTENT, 1f))
+        val hr = HeartRate.stats(Lifting.kcal(profile.weightKg, ms), ms)
+        row.addView(stat(formatNum(hr.kcal, 0), if (hr.avg != null) "kcal" else "kcal (becslés)"), ui.lp(0, WRAP_CONTENT, 1f))
+        hr.avg?.let { row.addView(stat("$it / ${hr.max}", "átl. / max pulzus"), ui.lp(0, WRAP_CONTENT, 1f)) }
         pane.addView(row, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(24) })
 
         // Emelési javaslat: ahol minden sorozat megvolt legalább a tervezett ismétléssel
@@ -428,11 +436,17 @@ class LiftActivity : KettlerActivity() {
 
     private fun finishWorkout(ms: Long, raise: Map<Long, Boolean>) {
         val db = Db.get(this)
+        val hr = HeartRate.stats(Lifting.kcal(profile.weightKg, ms), ms)
+        HeartRate.end()
+        HeartRate.disconnect()
         db.updateWorkout(
             workout.copy(
                 movingMs = ms,
-                kcal = Lifting.kcal(profile.weightKg, ms),
+                kcal = hr.kcal,
                 completed = sets.all { it.done },
+                avgHr = hr.avg,
+                maxHr = hr.max,
+                hrSamples = hr.samples,
             ),
         )
         raise.filterValues { it }.keys.forEach { db.raisePlanItem(it) }

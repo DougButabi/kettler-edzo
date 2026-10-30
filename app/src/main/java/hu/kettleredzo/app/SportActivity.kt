@@ -7,20 +7,24 @@ import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
+import android.widget.TextView
 
 // Profilválasztás után: melyik sportot edzi most? Elliptikus tréner, súlyzós edzés vagy kerékpár.
 // Fekvőben a csempék egymás mellett, állóban (telefon) egymás alatt vannak.
 class SportActivity : KettlerActivity() {
     private lateinit var ui: Ui
+    private lateinit var profile: Profile
+    private lateinit var goalsV: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val profile = Db.get(this).profile(Prefs.currentProfileId(this))
-        if (profile == null) {
+        val p = Db.get(this).profile(Prefs.currentProfileId(this))
+        if (p == null) {
             startActivity(Intent(this, ProfileActivity::class.java))
             finish()
             return
         }
+        profile = p
         // Tekerés közben egyenesen a térképre megyünk.
         if (BikeState.running) startActivity(Intent(this, RideActivity::class.java))
         ui = Ui(this)
@@ -35,6 +39,13 @@ class SportActivity : KettlerActivity() {
         root.addView(ui.text("KETTLER", 32, INK, ui.light, 0.35f))
         root.addView(ui.text("Szia ${profile.name}, mit edzel ma?", if (portrait) 48 else 64, INK, ui.bold).apply { maxLines = 2 },
             ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(if (portrait) 20 else 40) })
+        // A profil céljai és hol tart (koppintásra a célok szerkesztése)
+        goalsV = ui.text("", 24, MUTED, ui.medium).apply {
+            maxLines = 3
+            ellipsize = null
+            setOnClickListener { startActivity(Intent(this@SportActivity, GoalsActivity::class.java).putExtra(GoalsActivity.EXTRA_PROFILE_ID, profile.id)) }
+        }
+        root.addView(goalsV, ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = ui.ipx(14) })
 
         val tiles = LinearLayout(this).apply {
             orientation = if (portrait) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
@@ -54,7 +65,7 @@ class SportActivity : KettlerActivity() {
             }
             tiles.addView(tile(t.first, t.second, t.third, portrait, onClick), lp)
         }
-        root.addView(tiles, ui.lp(MATCH_PARENT, 0, 1f).apply { topMargin = ui.ipx(if (portrait) 30 else 50) })
+        root.addView(tiles, ui.lp(MATCH_PARENT, 0, 1f).apply { topMargin = ui.ipx(30) })
 
         val bottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         // Személyes eszközön nincs profilváltás
@@ -81,6 +92,27 @@ class SportActivity : KettlerActivity() {
         finish()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // A sportválasztón nem edz senki: a pulzuspántot elengedjük, hogy más eszköz is használhassa.
+        if (!KettlerState.running && !BikeState.running) HeartRate.disconnect()
+        renderGoals()
+    }
+
+    private fun renderGoals() {
+        if (!::goalsV.isInitialized) return
+        val db = Db.get(this)
+        val goals = db.goals(profile.id)
+        goalsV.text = if (goals.isEmpty()) {
+            "Nincs még célod. Koppints ide, és állíts be napi vagy heti célt."
+        } else {
+            goals.joinToString("   ·   ") { g ->
+                val v = db.goalValue(g)
+                g.progressText(v) + if (v >= g.target) " ✓" else ""
+            }
+        }
+    }
+
     private fun liftCaption(profileId: Long): String =
         if (Db.get(this).activeLift(profileId) != null) "Van folyamatban lévő edzésed" else "Edzésterv, sorozatok, pihenő"
 
@@ -93,7 +125,7 @@ class SportActivity : KettlerActivity() {
             setPadding(ui.ipx(24), ui.ipx(24), ui.ipx(24), ui.ipx(24))
             setOnClickListener { onClick() }
         }
-        card.addView(ui.picture(image, title, if (portrait) 300 else 340, grow = false))
+        card.addView(ui.picture(image, title, 300, grow = false))
         val text = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = if (portrait) Gravity.START else Gravity.CENTER_HORIZONTAL

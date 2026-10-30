@@ -89,6 +89,7 @@ class MainActivity : KettlerActivity() {
         profile = p
         nameV.text = p.name
         Prefs.applyMode(this)
+        HeartRate.connect(this)
         KettlerState.addListener(listener)
         startForegroundService(Intent(this, WorkoutService::class.java))
         render()
@@ -118,7 +119,7 @@ class MainActivity : KettlerActivity() {
         modePill.text = modeLabel(s.mode, s.goal, s.program?.week)
         renderGoal()
 
-        hrV.text = "–" // a pulzuspánt a 3. szakaszban jön
+        hrV.text = s.heartRate?.toString() ?: "–"
         avgV.text = formatNum(s.avgSpeedKmh, 1)
         distV.text = formatNum(s.workoutKm, 2)
         kcalV.text = formatNum(s.kcal, 0)
@@ -201,6 +202,7 @@ class MainActivity : KettlerActivity() {
             !s.running -> {
                 askOverlayPermission()
                 s.start(profile.id)
+                HeartRate.begin("elliptical:${s.startedAt}", profile) { KettlerState.isCounting && KettlerState.isMoving }
             }
             s.paused -> s.resume()
             else -> s.pause()
@@ -212,7 +214,10 @@ class MainActivity : KettlerActivity() {
     private fun finishWorkout() {
         val s = KettlerState
         if (!s.running) return
+        val hr = HeartRate.stats(s.workoutKm * KettlerState.KCAL_PER_KM, s.movingMs)
         s.finish()
+        HeartRate.end()
+        HeartRate.disconnect()
         if (s.movingMs < MIN_SAVED_MS) {
             ui.toast("1 percnél rövidebb edzést nem mentek el.")
             return
@@ -226,8 +231,11 @@ class MainActivity : KettlerActivity() {
                 distanceKm = s.workoutKm,
                 avgSpeed = s.avgSpeedKmh,
                 maxSpeed = s.maxSpeedKmh,
-                kcal = s.kcal,
+                kcal = hr.kcal,
                 level = Prefs.level(this),
+                avgHr = hr.avg,
+                maxHr = hr.max,
+                hrSamples = hr.samples,
                 mode = s.mode,
                 goal = if (s.mode == WorkoutMode.FREE || s.mode == WorkoutMode.PROGRAM) null else s.goal,
                 programWeek = s.program?.week,
