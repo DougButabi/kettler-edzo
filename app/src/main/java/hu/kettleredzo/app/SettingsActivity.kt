@@ -70,6 +70,12 @@ class SettingsActivity : KettlerActivity() {
     private var foundList: LinearLayout? = null
     private var scanner: BluetoothLeScanner? = null
     private val found = linkedMapOf<String, String>() // cím -> név
+    private lateinit var titleV: TextView
+    private var menuView: View? = null
+    private var contentView: View? = null
+    private var menuMode = false // telefon, álló: a menülista látszik (nem egy menüpont)
+    private var connLog = false // a Kapcsolat részletes naplója látszik
+    private var detailV: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,25 +90,29 @@ class SettingsActivity : KettlerActivity() {
 
         val root = ui.splitRoot()
         val left = ui.sidePanel("Beállítások")
-        val nav = ui.nav(left)
-        if (ui.portrait) nav.addView(ui.navButton("← Vissza") { finish() }, ui.navLp(true))
+        titleV = left.getChildAt(1) as TextView
+        // Fekvőben a menü bal oldalt van; telefonon állóban külön oldal, a menüpontok egymás alatt,
+        // és a kiválasztott pont teljes képernyőn nyílik meg (a „← Vissza” a menübe visz).
+        val nav = if (ui.portrait) LinearLayout(this).apply { orientation = LinearLayout.VERTICAL } else left
         var lastGroup: Group? = null
         for (s in sections) {
-            // Fekvőben csoportcím a menüpontok fölött
-            if (!ui.portrait && s.group != lastGroup) {
+            if (s.group != lastGroup) {
                 nav.addView(ui.label(s.group.title, MUTED), ui.lp(WRAP_CONTENT, WRAP_CONTENT).apply {
                     topMargin = ui.ipx(if (lastGroup == null) 34 else 26)
                 })
             }
             val b = ui.navButton(s.title) { show(s) }
             navButtons[s] = b
-            nav.addView(b, if (ui.portrait) ui.navLp(false) else ui.lp(MATCH_PARENT, ui.ipx(70)).apply { topMargin = ui.ipx(10) })
+            nav.addView(b, ui.lp(MATCH_PARENT, ui.ipx(if (ui.portrait) 80 else 70)).apply { topMargin = ui.ipx(10) })
             lastGroup = s.group
         }
-        if (!ui.portrait) {
-            left.addView(View(this), ui.lp(MATCH_PARENT, 0, 1f))
-            left.addView(ui.button("← Vissza", PILL, INK) { finish() }, ui.lp(MATCH_PARENT, ui.ipx(78)).apply { topMargin = ui.ipx(20) })
-        }
+        if (!ui.portrait) left.addView(View(this), ui.lp(MATCH_PARENT, 0, 1f))
+        // Kilépés az appból: a menü alján
+        nav.addView(ui.button("Kilépés az appból", DANGER, Color.WHITE) { exitApp() },
+            ui.lp(MATCH_PARENT, ui.ipx(if (ui.portrait) 80 else 78)).apply { topMargin = ui.ipx(if (ui.portrait) 40 else 20) })
+        nav.addView(ui.button("← Vissza", PILL, INK) { finish() }, ui.lp(MATCH_PARENT, ui.ipx(if (ui.portrait) 80 else 78)).apply {
+            topMargin = ui.ipx(if (ui.portrait) 14 else 20)
+        })
         root.addView(if (ui.portrait) left else ScrollView(this).apply {
             isFillViewport = true
             addView(left)
@@ -110,20 +120,53 @@ class SettingsActivity : KettlerActivity() {
 
         pane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         ui.paneLayout(pane)
-        root.addView(ScrollView(this).apply { addView(pane) }, ui.mainLp(0.66f))
+        val paneScroll = ScrollView(this).apply { addView(pane) }
+        root.addView(paneScroll, ui.mainLp(0.66f))
+        if (ui.portrait) {
+            nav.setPadding(ui.ipx(35 + ui.edge), 0, ui.ipx(35 + ui.edge), ui.ipx(40))
+            val menu = ScrollView(this).apply { addView(nav) }
+            root.addView(menu, ui.mainLp(0.66f))
+            menuView = menu
+            contentView = paneScroll
+            menuMode = savedInstanceState?.getBoolean(STATE_MENU) ?: true
+            applyMenuMode()
+        }
         setContentView(root)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString(STATE_SECTION, section.name)
+        outState.putBoolean(STATE_MENU, menuMode)
+    }
+
+    // Telefon, álló: a menü és a tartalom felváltva látszik
+    private fun applyMenuMode() {
+        menuView?.visibility = if (menuMode) View.VISIBLE else View.GONE
+        contentView?.visibility = if (menuMode) View.GONE else View.VISIBLE
+        titleV.text = if (menuMode || !ui.portrait) "Beállítások" else section.title
+        // A menülistában nincs kiemelt pont (nem látszik mellette a tartalom)
+        if (ui.portrait) navButtons.forEach { (k, v) -> ui.setChosen(v, !menuMode && k == section) }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        when {
+            connLog -> show(Section.CONNECTION)
+            ui.portrait && !menuMode -> {
+                menuMode = true
+                applyMenuMode()
+            }
+            else -> super.onBackPressed()
+        }
     }
 
     override fun onResume() {
         super.onResume()
         KettlerState.addListener(listener)
         HeartRate.addListener(hrListener)
-        show(section) // pl. az overlay-engedély, egy profil vagy az edzésterv közben megváltozhatott
+        // pl. az overlay-engedély, egy profil vagy az edzésterv közben megváltozhatott
+        if (connLog) showConnectionLog() else build(section)
     }
 
     override fun onPause() {
@@ -138,10 +181,27 @@ class SettingsActivity : KettlerActivity() {
         super.onPause()
     }
 
+    // Egy menüpont megnyitása (telefonon állóban teljes képernyőn)
     private fun show(s: Section) {
+        build(s)
+        if (ui.portrait) {
+            menuMode = false
+            applyMenuMode()
+        }
+    }
+
+    private fun build(s: Section) {
         section = s
+        connLog = false
         navButtons.forEach { (k, v) -> ui.setChosen(v, k == s) }
         pane.removeAllViews()
+        // Telefonon állóban a tartalom tetején vissza a menübe
+        if (ui.portrait) {
+            pane.addView(ui.button("← Menü", PILL, INK) {
+                menuMode = true
+                applyMenuMode()
+            }, ui.lp(ui.ipx(260), ui.ipx(80)).apply { bottomMargin = ui.ipx(30) })
+        }
         statusV = null
         dropsV = null
         hrStatusV = null
@@ -178,10 +238,27 @@ class SettingsActivity : KettlerActivity() {
         }, ui.lp(ui.ipx(260), ui.ipx(85)).apply { topMargin = ui.ipx(20) })
 
         pane.addView(ui.label("ÁLLAPOT"), sectionLp())
-        val sv = note("")
+        val sv = ui.text("", 28, INK, ui.bold)
         statusV = sv
         pane.addView(sv, ui.fieldLp())
+        pane.addView(ui.button("Napló", PILL, INK) { showConnectionLog() }, ui.lp(ui.ipx(260), ui.ipx(85)).apply { topMargin = ui.ipx(20) })
         pane.addView(note("A külső eszköz (ESP32) küldi a fordulatszámot, a sebességet és a távot."), sectionLp())
+        renderStatus()
+    }
+
+    // A kapcsolat részletei: cím, hibaüzenet és az utolsó megszakadások
+    private fun showConnectionLog() {
+        build(Section.CONNECTION)
+        pane.removeAllViews()
+        connLog = true
+        pane.addView(ui.button("← Vissza", PILL, INK) { show(Section.CONNECTION) }, ui.lp(ui.ipx(260), ui.ipx(80)).apply { bottomMargin = ui.ipx(30) })
+        pane.addView(ui.label("KAPCSOLAT"))
+        val sv = ui.text("", 28, INK, ui.bold)
+        statusV = sv
+        pane.addView(sv, ui.fieldLp())
+        val dt = note("")
+        detailV = dt
+        pane.addView(dt, ui.fieldLp())
         pane.addView(ui.label("UTOLSÓ MEGSZAKADÁSOK"), sectionLp())
         val dv = note("")
         dropsV = dv
@@ -194,12 +271,13 @@ class SettingsActivity : KettlerActivity() {
         val s = KettlerState
         val host = Prefs.host(this)
         val (text, color) = when {
-            host.isBlank() -> "Nincs megadva cím." to DANGER
-            s.connected -> "● Kapcsolódva ($host)" to Color.parseColor("#2E7D32")
-            else -> "Nincs kapcsolat: $host" + (s.lastError?.let { "\n$it" } ?: "") to DANGER
+            host.isBlank() -> "Nincs megadva cím" to DANGER
+            s.connected -> "● Kapcsolódva" to Color.parseColor("#2E7D32")
+            else -> "Nincs kapcsolat" to DANGER
         }
         v.text = text
         v.setTextColor(color)
+        detailV?.text = "Cím: ${host.ifBlank { "–" }}" + (if (!s.connected) s.lastError?.let { "\nHiba: $it" } ?: "" else "")
         dropsV?.text = EspClient.recentDrops().joinToString("\n").ifEmpty { "Nem volt megszakadás." }
     }
 
@@ -495,22 +573,13 @@ class SettingsActivity : KettlerActivity() {
         val version = packageManager.getPackageInfo(packageName, 0).versionName
         pane.addView(note("Verzió: $version"), ui.fieldLp())
         buildUpdate()
-        pane.addView(note("Elliptikus tréner, súlyzós edzés és kerékpár. Az edzések az otthoni szerverrel (ULC) szinkronizálódnak."), ui.fieldLp())
-        pane.addView(ui.label("GYAKORLATRAJZOK"), sectionLp())
-        pane.addView(ui.note(
-            "A beépített gyakorlatrajzok forrása az Everkinetic nyílt gyűjteménye (everkinetic.com, részben a wger.de-n át). Szerző: " +
-                Catalog.IMAGE_CREDITS.joinToString("; ") + ". Licenc: Creative Commons Nevezd meg! – Így add tovább!",
-            6,
-        ), ui.fieldLp())
-        pane.addView(ui.label("TÉRKÉP"), sectionLp())
-        pane.addView(note("Térképadatok: © OpenStreetMap közreműködők (openstreetmap.org/copyright)."), ui.fieldLp())
+        // Forrásmegjelölések (az OpenStreetMap és a gyakorlatrajzok CC BY-SA licence is előírja)
+        pane.addView(note("Térképadatok: © OpenStreetMap közreműködők (openstreetmap.org/copyright)."), sectionLp())
+        pane.addView(note("Gyakorlatrajzok: Everkinetic, CC BY-SA."), ui.fieldLp())
         // A szinkron láthatatlan; itt egy sor mutatja, hogy működik-e.
         val device = (if (Prefs.personal(this)) "személyes eszköz" else "közös eszköz") +
             Prefs.syncAccount(this).takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
         pane.addView(note("Utolsó szinkron: ${Prefs.syncStatus(this).ifBlank { "még nem volt" }} ($device)"), sectionLp())
-        pane.addView(ui.button("Kilépés az appból", DANGER, Color.WHITE) { exitApp() },
-            ui.lp(ui.ipx(340), ui.ipx(85)).apply { topMargin = ui.ipx(48) })
-        pane.addView(note("Ha fut edzés, előbb elmenti. Leállítja a háttérben futó kapcsolatot is."), ui.fieldLp())
     }
 
     // Egymás melletti választógombok (pl. Ki / Fél / Harmad / Negyed)
@@ -752,5 +821,6 @@ class SettingsActivity : KettlerActivity() {
         const val RESULT_EXIT = Activity.RESULT_FIRST_USER + 1
         const val EXTRA_SPORT = "sport"
         private const val STATE_SECTION = "section"
+        private const val STATE_MENU = "menu"
     }
 }
