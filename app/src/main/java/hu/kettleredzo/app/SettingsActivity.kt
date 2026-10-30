@@ -463,7 +463,24 @@ class SettingsActivity : KettlerActivity() {
     }
 
     private fun buildSounds() {
-        pane.addView(ui.label("HANGJELZÉSEK"))
+        pane.addView(ui.label("HANGOS VISSZAJELZÉS A CÉLNÁL"))
+        pane.addView(choiceRow(VoiceEvery.entries.map { it.title }, VoiceEvery.entries.indexOf(Prefs.voiceEvery(this))) {
+            Prefs.setVoiceEvery(this, VoiceEvery.entries[it])
+            show(Section.SOUNDS)
+        }, ui.fieldLp())
+        pane.addView(note(
+            "Elliptikusnál és kerékpárnál, ha van cél (táv, kalória, idő vagy program): a cél felénél, harmadainál vagy " +
+                "negyedeinél bemondja, hol tartasz, 95%-nál biztat, az utolsó km-nél vagy percnél szól, a végén gratulál.",
+        ), ui.fieldLp())
+        pane.addView(ui.label("HANG"), sectionLp())
+        pane.addView(choiceRow(listOf("Férfi", "Női"), if (Prefs.voiceMale(this)) 0 else 1) {
+            Prefs.setVoiceMale(this, it == 0)
+            show(Section.SOUNDS)
+        }, ui.fieldLp())
+        pane.addView(ui.button("Bemondás kipróbálása", PILL, INK) { Voice.say(this, listOf("q1", "t1", "h", "t2", "q3", "p95", "goal").random()) },
+            ui.lp(ui.ipx(420), ui.ipx(85)).apply { topMargin = ui.ipx(16) })
+
+        pane.addView(ui.label("HANGJELZÉSEK"), sectionLp())
         pane.addView(onOff(Prefs.beeps(this)) { Prefs.setBeeps(this, it) }, ui.fieldLp())
         pane.addView(ui.button("Hang kipróbálása", PILL, INK) { Beeper.test(handler) },
             ui.lp(ui.ipx(340), ui.ipx(85)).apply { topMargin = ui.ipx(16) })
@@ -494,6 +511,17 @@ class SettingsActivity : KettlerActivity() {
         pane.addView(ui.button("Kilépés az appból", DANGER, Color.WHITE) { exitApp() },
             ui.lp(ui.ipx(340), ui.ipx(85)).apply { topMargin = ui.ipx(48) })
         pane.addView(note("Ha fut edzés, előbb elmenti. Leállítja a háttérben futó kapcsolatot is."), ui.fieldLp())
+    }
+
+    // Egymás melletti választógombok (pl. Ki / Fél / Harmad / Negyed)
+    private fun choiceRow(titles: List<String>, chosen: Int, onPick: (Int) -> Unit): View {
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        titles.forEachIndexed { i, t ->
+            val b = ui.choice(t, 26) { onPick(i) }
+            ui.setChosen(b, i == chosen)
+            row.addView(b, ui.lp(0, ui.ipx(80), 1f).apply { if (i > 0) leftMargin = ui.ipx(16) })
+        }
+        return row
     }
 
     // ---- Pulzusmérő ----

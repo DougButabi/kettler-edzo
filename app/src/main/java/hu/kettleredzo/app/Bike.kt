@@ -43,6 +43,7 @@ object BikeState {
     // Pulzuspánttal a pulzusból (Keytel), nélküle a becslés
     val kcal get() = if (running) HeartRate.kcal(estKcal, movingMs) else estKcal
     var goalReached = false
+    val milestones = Milestones()
 
     // Automatikus szünet küszöbe km/h-ban (0 = kikapcsolva); indításkor a beállításból jön.
     var autoPauseKmh = 3.0
@@ -113,6 +114,7 @@ object BikeState {
         elevGain = 0.0
         estKcal = 0.0
         goalReached = false
+        milestones.reset()
         points.clear()
         smoothAlt = Double.NaN
         climbBase = Double.NaN

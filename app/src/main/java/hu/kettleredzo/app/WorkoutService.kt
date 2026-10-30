@@ -41,17 +41,34 @@ class WorkoutService : Service() {
             // Az edzésidő csak akkor megy, ha a gép mozog.
             if (s.isCounting && s.isMoving) s.movingMs += dt
             if (s.isCounting && !s.goalReached) advanceProgram(dt)
+            if (s.isCounting && !s.goalReached && s.mode != WorkoutMode.FREE) announce()
             if (s.isCounting && !s.goalReached && s.goalMet) {
-                // Cél teljesítve: dupla hosszú hang, és szünetre váltunk.
+                // Cél teljesítve: hangos gratuláció (vagy dupla hosszú hang), és szünetre váltunk.
                 s.goalReached = true
                 s.pause()
-                Beeper.long()
-                handler.postDelayed({ Beeper.long() }, 900)
+                if (Voice.enabled(this@WorkoutService)) {
+                    Voice.say(this@WorkoutService, "goal")
+                } else {
+                    Beeper.long()
+                    handler.postDelayed({ Beeper.long() }, 900)
+                }
             }
             updateOverlay()
             KettlerState.notifyChanged()
             handler.postDelayed(this, 1000)
         }
+    }
+
+    // Hangos visszajelzés: negyed / harmad / fél, 95%, és az utolsó km vagy perc.
+    private fun announce() {
+        val s = KettlerState
+        val (elapsed, last) = when (s.mode) {
+            WorkoutMode.PROGRAM -> s.programElapsedMs to s.program?.totalMs?.takeIf { it >= 180_000 }?.let { "min" to 1 - 60_000.0 / it }
+            WorkoutMode.DISTANCE -> s.movingMs to s.goal.takeIf { it >= 2 }?.let { "km" to 1 - 1 / it }
+            WorkoutMode.TIME -> s.movingMs to s.goal.takeIf { it >= 3 }?.let { "min" to 1 - 1 / it }
+            else -> s.movingMs to null
+        }
+        s.milestones.check(this, s.progress.toDouble(), elapsed, last?.first, last?.second)
     }
 
     // A program szakaszai valós idő szerint telnek (a pihenőben meg lehet állni).

@@ -44,25 +44,42 @@ class BikeService : Service() {
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
     }
 
+    // Hangos visszajelzés: negyed / harmad / fél, 95%, és az utolsó km vagy perc.
+    private fun announce() {
+        val s = BikeState
+        if (!s.isCounting || s.goalReached || s.mode == WorkoutMode.FREE) return
+        val last = when (s.mode) {
+            WorkoutMode.DISTANCE -> s.goal.takeIf { it >= 2 }?.let { "km" to 1 - 1 / it }
+            WorkoutMode.TIME -> s.goal.takeIf { it >= 3 }?.let { "min" to 1 - 1 / it }
+            else -> null
+        }
+        s.milestones.check(this, s.progress.toDouble(), s.movingMs, last?.first, last?.second)
+    }
+
     private val tick = object : Runnable {
         override fun run() {
             val now = SystemClock.elapsedRealtime()
             val dt = now - lastTick
             lastTick = now
             Beeper.enabled = Prefs.beeps(this@BikeService)
+            val voice = Voice.enabled(this@BikeService)
             when (BikeState.onTick(dt)) {
-                // Cél teljesítve: dupla hosszú hang. A tekerés megy tovább, a Befejezést te nyomod.
-                RideEvent.GOAL -> {
+                // Cél teljesítve: hangos gratuláció (vagy dupla hosszú hang). A tekerés megy tovább, a Befejezést te nyomod.
+                RideEvent.GOAL -> if (voice) {
+                    Voice.say(this@BikeService, "goal")
+                } else {
                     Beeper.long()
                     handler.postDelayed({ Beeper.long() }, 900)
                 }
-                RideEvent.HALFWAY -> if (Prefs.halfwayBeep(this@BikeService)) {
+                // Bekapcsolt hangos visszajelzésnél a félút hangja helyett a bemondás szól
+                RideEvent.HALFWAY -> if (!voice && Prefs.halfwayBeep(this@BikeService)) {
                     Beeper.short()
                     handler.postDelayed({ Beeper.long() }, 400)
                 }
                 RideEvent.KM -> if (Prefs.kmBeep(this@BikeService)) Beeper.short()
                 RideEvent.NONE -> {}
             }
+            announce()
             notifications?.notify(NOTIFICATION_ID, notification())
             BikeState.notifyChanged()
             handler.postDelayed(this, 1000)

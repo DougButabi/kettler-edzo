@@ -135,6 +135,12 @@ object Prefs {
     fun setLevel(c: Context, value: Int) =
         prefs(c).edit().putInt("level", value.coerceIn(LEVEL_MIN, levelCount(c))).apply()
 
+    // Hangos visszajelzés a cél felé haladásról: milyen gyakran, és férfi vagy női hangon
+    fun voiceEvery(c: Context): VoiceEvery = VoiceEvery.of(prefs(c).getString("voiceEvery", null))
+    fun setVoiceEvery(c: Context, value: VoiceEvery) = prefs(c).edit().putString("voiceEvery", value.code).apply()
+    fun voiceMale(c: Context): Boolean = prefs(c).getBoolean("voiceMale", true)
+    fun setVoiceMale(c: Context, value: Boolean) = prefs(c).edit().putBoolean("voiceMale", value).apply()
+
     fun beeps(c: Context): Boolean = prefs(c).getBoolean("beeps", true)
     fun setBeeps(c: Context, value: Boolean) = prefs(c).edit().putBoolean("beeps", value).apply()
 }

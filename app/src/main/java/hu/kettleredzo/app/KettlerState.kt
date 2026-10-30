@@ -31,6 +31,7 @@ object KettlerState {
     var workoutKm = 0.0
     var maxSpeedKmh = 0.0
     var goalReached = false
+    val milestones = Milestones()
     private var lastTotalKm = Double.NaN
 
     // Hány képernyője látszik az appnak (lásd KettlerActivity)
@@ -109,6 +110,7 @@ object KettlerState {
         workoutKm = 0.0
         maxSpeedKmh = 0.0
         goalReached = false
+        milestones.reset()
     }
 
     fun start(profileId: Long) {
