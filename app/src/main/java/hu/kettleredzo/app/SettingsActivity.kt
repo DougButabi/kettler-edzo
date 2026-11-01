@@ -458,7 +458,13 @@ class SettingsActivity : KettlerActivity() {
     }
 
     private fun buildMap() {
-        pane.addView(ui.label("NAGYÍTÁS TEKERÉS KÖZBEN"))
+        pane.addView(ui.label("TÉRKÉP"))
+        pane.addView(options(listOf("Utcatérkép" to false, "Műhold" to true), Prefs.mapSatellite(this)) {
+            Prefs.setMapSatellite(this, it)
+        }, ui.fieldLp())
+        pane.addView(note("Az Esri térképei. A műholdkép látványosabb, de több adatot tölt le."), ui.fieldLp())
+
+        pane.addView(ui.label("NAGYÍTÁS TEKERÉS KÖZBEN"), sectionLp())
         pane.addView(options(listOf("Közeli" to 17.0, "Közepes" to 15.0, "Távoli" to 13.0), Prefs.mapZoom(this)) {
             Prefs.setMapZoom(this, it)
         }, ui.fieldLp())
@@ -571,8 +577,8 @@ class SettingsActivity : KettlerActivity() {
         val version = packageManager.getPackageInfo(packageName, 0).versionName
         pane.addView(note("Verzió: $version"), ui.fieldLp())
         buildUpdate()
-        // Forrásmegjelölések (az OpenStreetMap és a gyakorlatrajzok CC BY-SA licence is előírja)
-        pane.addView(note("Térképadatok: © OpenStreetMap közreműködők (openstreetmap.org/copyright)."), sectionLp())
+        // Forrásmegjelölések (a térkép és a gyakorlatrajzok CC BY-SA licence is előírja)
+        pane.addView(note("Térkép: © Esri és adatszolgáltatói (köztük az OpenStreetMap közreműködői)."), sectionLp())
         pane.addView(note("Gyakorlatrajzok: Everkinetic, CC BY-SA."), ui.fieldLp())
         // A szinkron láthatatlan; itt egy sor mutatja, hogy működik-e.
         val device = (if (Prefs.personal(this)) "személyes eszköz" else "közös eszköz") +

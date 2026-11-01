@@ -211,9 +211,31 @@ object BikeState {
     }
 }
 
-// OpenStreetMap-térkép (osmdroid) közös beállítása: a csempék az app saját mappájába kerülnek,
-// így engedély nem kell hozzá, és a Beállításokból törölhetők.
+// Térkép (osmdroid) közös beállítása: a csempék az app saját mappájába kerülnek, így engedély nem
+// kell hozzá, és a Beállításokból törölhetők. Stílus: Esri utcatérkép vagy műhold (kulcs nélkül).
 object Maps {
+    // Az Esri csempéi {z}/{y}/{x} sorrendben vannak, ezért saját URL-építés kell.
+    private class EsriTiles(name: String, service: String) : org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase(
+        name, 1, 19, 256, "",
+        arrayOf("https://server.arcgisonline.com/ArcGIS/rest/services/$service/MapServer/tile/"),
+    ) {
+        override fun getTileURLString(index: Long): String {
+            val z = org.osmdroid.util.MapTileIndex.getZoom(index)
+            val x = org.osmdroid.util.MapTileIndex.getX(index)
+            val y = org.osmdroid.util.MapTileIndex.getY(index)
+            return "${baseUrl}$z/$y/$x"
+        }
+    }
+
+    private val STREET = EsriTiles("EsriStreet", "World_Street_Map")
+    private val SATELLITE = EsriTiles("EsriImagery", "World_Imagery")
+
+    fun tileSource(c: Context): org.osmdroid.tileprovider.tilesource.ITileSource =
+        if (Prefs.mapSatellite(c)) SATELLITE else STREET
+
+    // A térképen kötelező forrásmegjelölés
+    const val CREDIT = "© Esri"
+
     fun init(c: Context) {
         Configuration.getInstance().apply {
             userAgentValue = c.packageName

@@ -90,6 +90,10 @@ object Prefs {
     fun setAutoPauseKmh(c: Context, value: Int) = prefs(c).edit().putInt("bikeAutoPauseKmh", value).apply()
 
     // Térkép nagyítása tekerés közben (osmdroid zoomszint)
+    // Kerékpáros térkép stílusa: utcatérkép (alapból) vagy műhold
+    fun mapSatellite(c: Context): Boolean = prefs(c).getBoolean("mapSatellite", false)
+    fun setMapSatellite(c: Context, value: Boolean) = prefs(c).edit().putBoolean("mapSatellite", value).apply()
+
     fun mapZoom(c: Context): Double = prefs(c).getFloat("bikeMapZoom", 17f).toDouble()
     fun setMapZoom(c: Context, value: Double) = prefs(c).edit().putFloat("bikeMapZoom", value.toFloat()).apply()
 

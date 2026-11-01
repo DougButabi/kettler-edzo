@@ -15,7 +15,6 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
@@ -289,7 +288,7 @@ class RideActivity : KettlerActivity() {
     private fun buildMap(): View {
         val box = FrameLayout(this)
         map = MapView(this).apply {
-            setTileSource(TileSourceFactory.MAPNIK)
+            setTileSource(Maps.tileSource(context))
             setMultiTouchControls(true)
             zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
             val last = BikeState.lastLocation
@@ -331,8 +330,8 @@ class RideActivity : KettlerActivity() {
         box.addView(followBtn, FrameLayout.LayoutParams(WRAP_CONTENT, ui.ipx(70), Gravity.TOP or Gravity.END).apply {
             setMargins(0, ui.ipx(20), ui.ipx(20), 0)
         })
-        // Az OpenStreetMap licence szerint a térképen fel kell tüntetni a forrást.
-        box.addView(ui.text("© OpenStreetMap", 14, MUTED, ui.regular).apply {
+        // A térkép licence szerint fel kell tüntetni a forrást.
+        box.addView(ui.text(Maps.CREDIT, 14, MUTED, ui.regular).apply {
             setBackgroundColor(Color.parseColor("#B3FFFFFF"))
             setPadding(ui.ipx(8), ui.ipx(2), ui.ipx(8), ui.ipx(2))
         }, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.BOTTOM or Gravity.END))

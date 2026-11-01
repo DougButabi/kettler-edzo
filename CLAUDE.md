@@ -96,6 +96,10 @@ Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig 
 - Az elliptikus képernyő megnyitásakor fut (`MainActivity.runRoutine`, nem fut edzés közben és forgatáskor): beállítja a hangerőt, és figyelmeztet, ha a fülhallgató nincs a hangkimenetek között.
 - 2026-10-30-án volt app-indítás (YouTube/Kodi JSON-RPC) és Rutin gomb is, a felhasználó kérésére kivettük (cdee893 commitban megvan, ha kellene).
 
+## Térkép és tétlen kilépés (2026-11-01)
+- Kerékpáros térkép: Esri utcatérkép (alap) vagy műhold, kulcs nélkül (`Maps.tileSource`, saját `EsriTiles`, mert az Esri {z}/{y}/{x} sorrendű). Választás: Beállítások › Kerékpár › Térkép. A forrás „© Esri” a térkép sarkában. A CARTO-stílusok már API-kulcsot kérnek, ezért nem azok. Emulátoron a térkép üres (a PC hálózata a HTTPS-t saját tanúsítvánnyal bontja), valódi eszközön működik.
+- `IdleExit` (KettlerActivity.kt): ha az app 10 percig a háttérben van, és nem fut edzés (elliptikus, kerékpár, folyamatban lévő súlyzós), leállítja a WorkoutService-t, bontja a pulzuspántot és bezárja a feladatot.
+
 ## Hangos visszajelzés (2026-10-30)
 - Elliptikusnál és kerékpárnál céllal (táv, kcal, idő, program): negyed / harmad / fél (Beállítások › Hangjelzések, `VoiceEvery`), 95%, utolsó km / perc, cél. Férfi vagy női hang (Prefs `voiceMale`). `Voice.kt`: `Voice.say(kulcs)` véletlen változat, audio focus „duck”-kal; `Milestones` kihagyja a mérföldkövet, ha a következő 30 mp-en belül jönne (a tempóból becsülve).
 - A hangfájlok előre legenerálva: `tools/hangok.py` (Microsoft Edge felolvasó, `pip install edge-tts`, hangok hu-HU-TamasNeural / hu-HU-NoemiNeural) -> `res/raw/v_<m|f>_<kulcs>_<n>.mp3`. Új mondatnál a listát bővítsd, és futtasd újra (a meglévőket nem írja felül).

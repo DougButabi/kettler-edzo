@@ -10,7 +10,6 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
@@ -71,7 +70,7 @@ class TrackActivity : KettlerActivity() {
             return box
         }
         val m = MapView(this).apply {
-            setTileSource(TileSourceFactory.MAPNIK)
+            setTileSource(Maps.tileSource(context))
             setMultiTouchControls(true)
             zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
             controller.setZoom(14.0)
@@ -90,7 +89,7 @@ class TrackActivity : KettlerActivity() {
             m.zoomToBoundingBox(BoundingBox.fromGeoPoints(route), false, ui.ipx(60))
         }
         box.addView(m, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        box.addView(ui.text("© OpenStreetMap", 14, MUTED, ui.regular).apply {
+        box.addView(ui.text(Maps.CREDIT, 14, MUTED, ui.regular).apply {
             setBackgroundColor(Color.parseColor("#B3FFFFFF"))
             setPadding(ui.ipx(8), ui.ipx(2), ui.ipx(8), ui.ipx(2))
         }, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.BOTTOM or Gravity.END))
