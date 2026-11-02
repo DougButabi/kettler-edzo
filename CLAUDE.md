@@ -11,7 +11,7 @@ Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig 
 
 ## Hardver
 - Tréner: Kettler Vito XL (konzol ST2510-8 / ST2550-8, -9 / ST2551-8). Az ellenállás kézi fékerő-állítóval megy, a konzol nem ismeri → watt nem számolható.
-- Kézikönyv: 60 fordulat/perc = 9,5 km/h → 1 fordulat = 2,639 m. Energia: 1 km = 352 kJ (közepes szint). Max. pulzus = 220 − életkor. Kezdő program: lásd `Training.kt`.
+- Kézikönyv: 60 fordulat/perc = 9,5 km/h → 1 fordulat = 2,639 m. Energia: 1 km = 352 kJ (közepes szint). Max. pulzus = 220 − életkor. Kezdő program: lásd `Training.kt`. A konzol a távot ennél kevesebbnek méri (5,5 km vs. 6,0 km), ezért az ESP `meters_per_rev` értéke 2,419 (2026-11-02).
 - Sebességérzékelő: a konzol 2 pólusú reed-csatlakozója, párhuzamosan az ESP32 GPIO27-re kötve (belső felhúzás). **10 impulzus / fordulat** (kalibrálva a konzol RPM-jéhez).
 - ESP32: MH-ET LIVE MiniKit, ESPHome, a konfiguráció: `esphome/kettlercontrol.yaml` (a felhasználó az ESPHome Builderben szerkeszti, WiFi-n tölti fel).
 - Pulzuspánt: Magene H64 (BLE 0x180D/0x2A37). Terv: az ESP32 olvassa (ESPHome `ble_client`), az app nem használ Bluetootht. Még nincs bekötve.

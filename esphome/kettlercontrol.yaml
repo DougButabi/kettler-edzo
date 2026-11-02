@@ -1,6 +1,6 @@
 substitutions:
   pulses_per_rev: "10"      # impulzus / pedálfordulat (a gép kijelzőjéhez kalibrálva)
-  meters_per_rev: "2.639"
+  meters_per_rev: "2.419"   # a konzol távjához kalibrálva (5,5 km a konzolon = 6,0 km 2,639-cel), 2026-11-02
 
 esphome:
   name: kettlercontrol
