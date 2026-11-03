@@ -184,11 +184,16 @@ class WorkoutService : Service() {
             else -> ""
         }
         val goal = s.goalStatus()?.let { "$it     " } ?: ""
-        val hr = s.heartRate?.let { "     $it bpm" } ?: ""
-        return prefix + goal + formatTime(s.movingMs) + "     " +
-            formatNum(s.speedKmh, 1) + " km/h     " +
-            formatNum(s.workoutKm, 2) + " km     " +
-            formatNum(s.kcal, 0) + " kcal" + hr
+        // A cél már mutatja a hátralévő kalóriát / távot / időt, ezért azt kihagyjuk;
+        // szabad edzésnél és programnál (ott a szakasz ideje látszik) minden marad.
+        val parts = mutableListOf<String>()
+        if (s.mode != WorkoutMode.TIME) parts += formatTime(s.movingMs)
+        parts += formatNum(s.speedKmh, 1) + " km/h"
+        if (s.mode != WorkoutMode.DISTANCE) parts += formatNum(s.workoutKm, 2) + " km"
+        if (s.mode != WorkoutMode.KCAL) parts += formatNum(s.kcal, 0) + " kcal"
+        parts += "⌀ " + formatNum(s.avgSpeedKmh, 1) + " km/h"
+        s.heartRate?.let { parts += "$it bpm" }
+        return prefix + goal + parts.joinToString("     ")
     }
 
     private fun addOverlay() {

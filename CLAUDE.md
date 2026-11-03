@@ -56,6 +56,7 @@ Android-app egy Kettler Vito XL elliptikus trénerhez: edzésképernyő, félig 
 - Egy osztálytulajdonság ne legyen azonos nevű egy felső szintű függvénnyel, amit a tulajdonság hív (pl. `modeLabel`).
 - Fekvő módban a billentyűzet teljes képernyős lenne: EditText-eken `compactKeyboard()`, az Activity-n `adjustPan`.
 - Az overlay csak futó edzés közben látszik, és kell hozzá a „Megjelenítés más alkalmazások felett” engedély.
+- Hat adat + a cél (2026-11-03): az edzésképernyőn a pulzus mellett az Edzésidő; annak a csempének a helyén, amit a cél mező már mutat, az Átlagsebesség (kalória célnál az energia, táv célnál a táv, egyébként az edzésidő helyén; `MainActivity.Slot`). Az overlay ugyanígy: az átlag mindig rajta van, a céllal ismétlődő adat (kcal / km / idő) kimarad, szabad edzésnél és programnál semmi.
 - `letterSpacing`-es, kipontozott feliratokat az Android levághat. Szűk helyen `ellipsize = null` és egy kis ráhagyás kell.
 
 ## Súlyzós modul (0.6-ban elkészült)

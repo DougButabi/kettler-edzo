@@ -51,9 +51,15 @@ class MainActivity : KettlerActivity() {
             blink.postDelayed(this, 500)
         }
     }
-    private lateinit var avgV: TextView
+    private lateinit var elapsedV: TextView
     private lateinit var distV: TextView
     private lateinit var kcalV: TextView
+
+    // Az átlagsebesség annak a csempének a helyére kerül, amit a cél mező már mutat (kalória célnál
+    // az energia, táv célnál a táv, egyébként az edzésidő). Csempénként: a saját és az átlag nézet.
+    private enum class Slot { TIME, DIST, KCAL }
+    private val slots = mutableMapOf<Slot, Pair<View, View>>()
+    private val avgVs = mutableListOf<TextView>()
     private lateinit var levelV: TextView
     private lateinit var rpmV: TextView
     private lateinit var statusV: TextView
@@ -133,7 +139,17 @@ class MainActivity : KettlerActivity() {
         renderGoal()
 
         hrV.text = s.heartRate?.toString() ?: "–"
-        avgV.text = formatNum(s.avgSpeedKmh, 1)
+        elapsedV.text = formatTime(s.movingMs)
+        avgVs.forEach { it.text = formatNum(s.avgSpeedKmh, 1) }
+        val avgSlot = when (s.mode) {
+            WorkoutMode.KCAL -> Slot.KCAL
+            WorkoutMode.DISTANCE -> Slot.DIST
+            else -> Slot.TIME
+        }
+        slots.forEach { (slot, views) ->
+            views.first.visibility = if (slot == avgSlot) View.GONE else View.VISIBLE
+            views.second.visibility = if (slot == avgSlot) View.VISIBLE else View.GONE
+        }
         distV.text = formatNum(s.workoutKm, 2)
         kcalV.text = formatNum(s.kcal, 0)
         levelV.text = Prefs.level(this).toString()
@@ -409,10 +425,10 @@ class MainActivity : KettlerActivity() {
             bottomMargin = ui.ipx(24)
         })
         hrV = ui.text("–", SMALL_VALUE, INK, ui.bold)
-        avgV = ui.text("0,0", SMALL_VALUE, INK, ui.bold)
+        elapsedV = ui.text("0:00", SMALL_VALUE, INK, ui.bold)
         panel.addView(tileRow(
             tile(R.drawable.ic_heart, "PULZUS", hrV, "bpm").also { heartIcon = iconOf(it) },
-            tile(R.drawable.ic_trend, "ÁTLAGSEBESSÉG", avgV, "km/h"),
+            slot(Slot.TIME, tile(R.drawable.ic_timer, "EDZÉSIDŐ", elapsedV, "")),
         ))
         panel.addView(ui.line(), ui.lp(MATCH_PARENT, 1).apply {
             topMargin = ui.ipx(24)
@@ -421,10 +437,21 @@ class MainActivity : KettlerActivity() {
         distV = ui.text("0,00", SMALL_VALUE, INK, ui.bold)
         kcalV = ui.text("0", SMALL_VALUE, INK, ui.bold)
         panel.addView(tileRow(
-            tile(R.drawable.ic_place, "TÁVOLSÁG", distV, "km"),
-            tile(R.drawable.ic_fire, "BECSÜLT ENERGIA", kcalV, "kcal"),
+            slot(Slot.DIST, tile(R.drawable.ic_place, "TÁVOLSÁG", distV, "km")),
+            slot(Slot.KCAL, tile(R.drawable.ic_fire, "BECSÜLT ENERGIA", kcalV, "kcal")),
         ))
         return panel
+    }
+
+    // Egy csempehely: a saját csempe, és mögötte az átlagsebességé (a render dönti el, melyik látszik).
+    private fun slot(slot: Slot, own: View): View {
+        val avgV = ui.text("0,0", SMALL_VALUE, INK, ui.bold).also { avgVs += it }
+        val avg = tile(R.drawable.ic_trend, "ÁTLAGSEBESSÉG", avgV, "km/h")
+        slots[slot] = own to avg
+        return android.widget.FrameLayout(this).apply {
+            addView(own)
+            addView(avg)
+        }
     }
 
     private fun tileRow(a: View, b: View): View {
