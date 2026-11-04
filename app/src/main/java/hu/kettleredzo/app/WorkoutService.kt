@@ -184,13 +184,12 @@ class WorkoutService : Service() {
             else -> ""
         }
         val goal = s.goalStatus()?.let { "$it     " } ?: ""
-        // A cél már mutatja a hátralévő kalóriát / távot / időt, ezért azt kihagyjuk;
-        // szabad edzésnél és programnál (ott a szakasz ideje látszik) minden marad.
+        // A cél mellett a megtett érték is látszik (pl. HÁTRA 120 kcal … 380 kcal), és mindig ott az átlag.
         val parts = mutableListOf<String>()
-        if (s.mode != WorkoutMode.TIME) parts += formatTime(s.movingMs)
+        parts += formatTime(s.movingMs)
         parts += formatNum(s.speedKmh, 1) + " km/h"
-        if (s.mode != WorkoutMode.DISTANCE) parts += formatNum(s.workoutKm, 2) + " km"
-        if (s.mode != WorkoutMode.KCAL) parts += formatNum(s.kcal, 0) + " kcal"
+        parts += formatNum(s.workoutKm, 2) + " km"
+        parts += formatNum(s.kcal, 0) + " kcal"
         parts += "⌀ " + formatNum(s.avgSpeedKmh, 1) + " km/h"
         s.heartRate?.let { parts += "$it bpm" }
         return prefix + goal + parts.joinToString("     ")
