@@ -9,6 +9,11 @@ object Prefs {
     private fun prefs(c: Context) = c.getSharedPreferences("beallitasok", Context.MODE_PRIVATE)
 
     fun host(c: Context): String = prefs(c).getString("host", "") ?: ""
+
+    // Home Assistant webhook az élő edzésadatnak (Nappali dashboard); üresen nem küld semmit.
+    const val DEFAULT_HA_WEBHOOK = "http://192.168.1.90:8123/api/webhook/kettler_edzo"
+    fun haWebhook(c: Context): String = prefs(c).getString("haWebhook", DEFAULT_HA_WEBHOOK) ?: DEFAULT_HA_WEBHOOK
+    fun setHaWebhook(c: Context, value: String) = prefs(c).edit().putString("haWebhook", value.trim()).apply()
     fun setHost(c: Context, value: String) = prefs(c).edit().putString("host", value.trim()).apply()
 
     // Szinkron a ULC-vel (Ultimate Life Control, otthoni szerver)

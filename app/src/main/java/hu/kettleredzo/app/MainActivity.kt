@@ -245,6 +245,7 @@ class MainActivity : KettlerActivity() {
         if (!s.running) return
         val hr = HeartRate.stats(s.workoutKm * KettlerState.KCAL_PER_KM, s.movingMs)
         s.finish()
+        HaPush.finished(this)
         HeartRate.end()
         if (s.movingMs < MIN_SAVED_MS) {
             ui.toast("1 percnél rövidebb edzést nem mentek el.")

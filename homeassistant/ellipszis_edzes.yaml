@@ -1,0 +1,84 @@
+# Kettler edző → Home Assistant: élő elliptikus edzés (a Nappali dashboard tréner kártyájához).
+# Helye a HA-n: /config/PACKAGES/ellipszis_edzes.yaml (packages: !include_dir_named PACKAGES).
+# Az app (HaPush.kt) 5 mp-enként POST-ol ide JSON-t: state = fut / szunet / kesz / vege.
+# sensor.ellipszis_edzes
+#   állapot: fut, szunet, kesz, nincs (vége, vagy 90 mp óta nem jött adat)
+#   d:       az utolsó beérkezett adat (név, nem, cél, kész, százalék, idő, várható cél…)
+#   utolso:  az utolsó legalább 1 perces lezárt edzés adata (edzés nélkül ezt mutatja a kártya)
+# Trigger-alapú template, így a HA újraindítása után is megmarad.
+template:
+  - triggers:
+      - trigger: webhook
+        webhook_id: kettler_edzo
+        allowed_methods: [POST]
+        local_only: true
+        id: adat
+      - trigger: time_pattern
+        seconds: "/30"
+        id: ora
+    sensor:
+      - name: Ellipszis edzés
+        unique_id: ellipszis_edzes_elo
+        default_entity_id: sensor.ellipszis_edzes
+        icon: mdi:bike
+        state: >
+          {% if trigger.id == 'adat' %}
+            {{ 'nincs' if trigger.json.state == 'vege' else trigger.json.state }}
+          {% elif this.state in ['fut', 'szunet', 'kesz']
+                and (now().timestamp() - ((this.attributes.d | default({})).ts | default(0) | float(0))) > 90 %}
+            nincs
+          {% else %}
+            {{ this.state if this.state in ['fut', 'szunet', 'kesz', 'nincs'] else 'nincs' }}
+          {% endif %}
+        attributes:
+          d: >
+            {{ trigger.json if trigger.id == 'adat' else (this.attributes.d | default({})) }}
+          utolso: >
+            {% set prev = this.attributes.utolso | default({}) %}
+            {% if trigger.id == 'adat' %}
+              {% set j = trigger.json %}
+              {{ j if j.state == 'vege' and (j.moving_s | int(0)) >= 60 else prev }}
+            {% else %}
+              {% set d = this.attributes.d | default({}) %}
+              {% set stale = this.state in ['fut', 'szunet', 'kesz']
+                   and (now().timestamp() - (d.ts | default(0) | float(0))) > 90 %}
+              {{ d if stale and (d.moving_s | default(0) | int(0)) >= 60 else prev }}
+            {% endif %}
+
+# Összesítő a ULC-ből: minden elliptikus edzés minden profilra (a kártya ezt mutatja, ha senki nem edz).
+# Kulcs: secrets.yaml → ulc_osszesito_auth ("Bearer …", a NAS-os ULC .env HA_API_KEY-je).
+rest:
+  - resource: http://192.168.1.78:8091/api/edzes/osszesito
+    headers:
+      Authorization: !secret ulc_osszesito_auth
+    scan_interval: 600
+    timeout: 15
+    sensor:
+      - name: Ellipszis összesítő
+        unique_id: ellipszis_osszesito
+        icon: mdi:sigma
+        unit_of_measurement: km
+        value_template: "{{ value_json.km }}"
+        json_attributes:
+          - workouts
+          - kcal
+          - moving_s
+          - first
+          - last_name
+          - last_sex
+          - last_at
+
+# Edzés lezárása után 1 perccel (addigra az app felszinkronizált) frissítjük az összesítőt.
+automation:
+  - id: ellipszis_osszesito_frissites
+    alias: Ellipszis összesítő frissítése edzés után
+    mode: restart
+    triggers:
+      - trigger: state
+        entity_id: sensor.ellipszis_edzes
+        to: nincs
+    actions:
+      - delay: "00:01:00"
+      - action: homeassistant.update_entity
+        target:
+          entity_id: sensor.ellipszis_osszesito

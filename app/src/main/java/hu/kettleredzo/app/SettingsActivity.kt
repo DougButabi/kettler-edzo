@@ -241,6 +241,19 @@ class SettingsActivity : KettlerActivity() {
         pane.addView(sv, ui.fieldLp())
         pane.addView(ui.button("Napló", PILL, INK) { showConnectionLog() }, ui.lp(ui.ipx(260), ui.ipx(85)).apply { topMargin = ui.ipx(20) })
         pane.addView(note("A külső eszköz (ESP32) küldi a fordulatszámot, a sebességet és a távot."), sectionLp())
+
+        // Élő edzésadat a Home Assistantnek (Nappali dashboard, tréner kártya)
+        pane.addView(ui.label("HOME ASSISTANT WEBHOOK"), sectionLp())
+        val ha = ui.field(Prefs.haWebhook(this), "üresen nem küld", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI, true)
+        pane.addView(ha, ui.fieldLp())
+        pane.addView(ui.button("Mentés", BAR, Color.WHITE) {
+            Prefs.setHaWebhook(this, ha.text.toString())
+            ui.toast("Elmentve.")
+        }, ui.lp(ui.ipx(260), ui.ipx(85)).apply { topMargin = ui.ipx(20) })
+        pane.addView(note(
+            "Edzés közben 5 másodpercenként elküldi, ki edz, mi a cél, hol tart és mikorra várható a cél. " +
+                "Utolsó küldés: " + HaPush.status.ifBlank { "még nem volt" },
+        ), ui.fieldLp())
         renderStatus()
     }
 

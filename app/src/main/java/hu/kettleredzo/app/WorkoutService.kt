@@ -54,6 +54,7 @@ class WorkoutService : Service() {
                 }
             }
             updateOverlay()
+            HaPush.tick(this@WorkoutService)
             KettlerState.notifyChanged()
             handler.postDelayed(this, 1000)
         }
