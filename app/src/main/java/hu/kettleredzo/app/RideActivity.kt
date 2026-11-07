@@ -409,6 +409,7 @@ class RideActivity : KettlerActivity() {
             panel.addView(tileRow(tile(R.drawable.ic_bars, "SZINT", climbV, "m"), tile(R.drawable.ic_fire, "KALÓRIA", kcalV, "kcal"),
                 tile(R.drawable.ic_heart, "PULZUS", hrV, "bpm").also {
                     heartIcon = ((it as LinearLayout).getChildAt(0) as LinearLayout).getChildAt(0) as android.widget.ImageView
+                    it.opensHeartRate(this)
                 }))
         } else {
             panel.addView(tileRow(tile(R.drawable.ic_bars, "SZINT", climbV, "m"), tile(R.drawable.ic_fire, "KALÓRIA", kcalV, "kcal")))

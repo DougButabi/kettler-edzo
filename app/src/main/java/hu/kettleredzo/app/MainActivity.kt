@@ -428,7 +428,10 @@ class MainActivity : KettlerActivity() {
         hrV = ui.text("–", SMALL_VALUE, INK, ui.bold)
         elapsedV = ui.text("0:00", SMALL_VALUE, INK, ui.bold)
         panel.addView(tileRow(
-            tile(R.drawable.ic_heart, "PULZUS", hrV, "bpm").also { heartIcon = iconOf(it) },
+            tile(R.drawable.ic_heart, "PULZUS", hrV, "bpm").also {
+                heartIcon = iconOf(it)
+                it.opensHeartRate(this)
+            },
             slot(Slot.TIME, tile(R.drawable.ic_timer, "EDZÉSIDŐ", elapsedV, "")),
         ))
         panel.addView(ui.line(), ui.lp(MATCH_PARENT, 1).apply {

@@ -648,15 +648,11 @@ class SettingsActivity : KettlerActivity() {
 
     private fun renderHeart() {
         val v = hrStatusV ?: return
-        val bpm = HeartRate.bpm
         v.text = when {
             !HeartRate.paired(this) -> if (scanner != null) "Keresés…" else "Nyomd meg a Keresést."
-            !HeartRate.hasPermission(this) -> "Engedélyezd a Bluetooth-hozzáférést (Keresés gomb)."
-            bpm != null -> "● Kapcsolódva   ·   ♥ $bpm bpm"
-            HeartRate.state == HeartRate.State.CONNECTED -> "● Kapcsolódva, pulzusra vár…"
-            HeartRate.state == HeartRate.State.CONNECTING -> "Kapcsolódás…"
-            else -> "Nincs kapcsolat (be van kapcsolva a pánt?)"
+            else -> HeartRate.describe(this).let { (status, tip) -> if (tip == null) "● $status" else status + "\n" + tip }
         }
+        v.opensHeartRate(this)
     }
 
     private fun renderFound() {

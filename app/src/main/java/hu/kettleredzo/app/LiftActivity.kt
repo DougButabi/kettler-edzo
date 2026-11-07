@@ -120,7 +120,7 @@ class LiftActivity : KettlerActivity() {
         }
         elapsedV = ui.text("0:00", 64, INK, ui.bold)
         stats.addView(elapsedV)
-        kcalV = ui.text("", 22, MUTED, ui.regular)
+        kcalV = ui.text("", 22, MUTED, ui.regular).apply { opensHeartRate(this@LiftActivity) }
         stats.addView(kcalV, ui.lp(if (portrait) 0 else WRAP_CONTENT, WRAP_CONTENT, if (portrait) 1f else 0f).apply { leftMargin = ui.ipx(20) })
         left.addView(stats, ui.lp(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = ui.ipx(12) })
         val finish = ui.button("Befejezés", BAR, Color.WHITE) { showSummary() }
