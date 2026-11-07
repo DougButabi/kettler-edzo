@@ -2,7 +2,8 @@
 # Helye a HA-n: /config/PACKAGES/ellipszis_edzes.yaml (packages: !include_dir_named PACKAGES).
 # Az app (HaPush.kt) 5 mp-enként POST-ol ide JSON-t: state = fut / szunet / kesz / vege.
 # sensor.ellipszis_edzes
-#   állapot: fut, szunet, kesz, nincs (vége, vagy 90 mp óta nem jött adat)
+#   állapot: fut, szunet, kesz, nincs (vége, 90 mp óta nem jött adat, vagy szünet/kész 10 percig mozgás nélkül)
+#   mozgott: mikor nőtt utoljára a mozgásidő
 #   d:       az utolsó beérkezett adat (név, nem, cél, kész, százalék, idő, várható cél…)
 #   utolso:  az utolsó legalább 1 perces lezárt edzés adata (edzés nélkül ezt mutatja a kártya)
 # Trigger-alapú template, így a HA újraindítása után is megmarad.
@@ -21,11 +22,27 @@ template:
         unique_id: ellipszis_edzes_elo
         default_entity_id: sensor.ellipszis_edzes
         icon: mdi:bike
+        # Szünet / kész állapotban 10 perc mozgás nélkül (nyitva hagyott app) is "nincs".
         state: >
+          {% set prevd = this.attributes.d | default({}) %}
+          {% set prevm = this.attributes.mozgott | default(0) | float(0) %}
           {% if trigger.id == 'adat' %}
-            {{ 'nincs' if trigger.json.state == 'vege' else trigger.json.state }}
+            {% set j = trigger.json %}
+            {% set m = (j.ts | float(0)) if (prevm == 0
+                 or j.started != prevd.started
+                 or (j.moving_s | int(0)) > (prevd.moving_s | default(0) | int(0))) else prevm %}
+            {% if j.state == 'vege' %}
+              nincs
+            {% elif j.state in ['szunet', 'kesz'] and (j.ts | float(0)) - m > 600 %}
+              nincs
+            {% else %}
+              {{ j.state }}
+            {% endif %}
           {% elif this.state in ['fut', 'szunet', 'kesz']
-                and (now().timestamp() - ((this.attributes.d | default({})).ts | default(0) | float(0))) > 90 %}
+                and (now().timestamp() - (prevd.ts | default(0) | float(0))) > 90 %}
+            nincs
+          {% elif this.state in ['szunet', 'kesz'] and prevm > 0
+                and (now().timestamp() - prevm) > 600 %}
             nincs
           {% else %}
             {{ this.state if this.state in ['fut', 'szunet', 'kesz', 'nincs'] else 'nincs' }}
@@ -33,6 +50,18 @@ template:
         attributes:
           d: >
             {{ trigger.json if trigger.id == 'adat' else (this.attributes.d | default({})) }}
+          # Mikor nőtt utoljára a mozgásidő (epoch mp); új edzésnél újraindul.
+          mozgott: >
+            {% set prevd = this.attributes.d | default({}) %}
+            {% set prevm = this.attributes.mozgott | default(0) | float(0) %}
+            {% if trigger.id == 'adat' %}
+              {% set j = trigger.json %}
+              {{ (j.ts | float(0)) if (prevm == 0
+                   or j.started != prevd.started
+                   or (j.moving_s | int(0)) > (prevd.moving_s | default(0) | int(0))) else prevm }}
+            {% else %}
+              {{ prevm }}
+            {% endif %}
           utolso: >
             {% set prev = this.attributes.utolso | default({}) %}
             {% if trigger.id == 'adat' %}
