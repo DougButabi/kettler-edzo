@@ -87,6 +87,8 @@ class MainActivity : KettlerActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_SETTINGS && resultCode == SettingsActivity.RESULT_EXIT) exitApp()
+        // A nézőből a Vissza a sportválasztóhoz visz; a többi esetben az onResume kapcsolódik a géphez.
+        if (requestCode == REQ_WATCH && resultCode == RESULT_CANCELED) finish()
     }
 
     override fun onResume() {
@@ -109,11 +111,44 @@ class MainActivity : KettlerActivity() {
         HeartRate.connect(this)
         blink.post(heartTick)
         KettlerState.addListener(listener)
-        startForegroundService(Intent(this, WorkoutService::class.java))
+        resumed = true
+        if (KettlerState.running || LiveWatch.ignored || !Sync.configured(this)) {
+            startForegroundService(Intent(this, WorkoutService::class.java))
+        } else {
+            // Előbb megnézzük, nem vezet-e épp edzést egy másik készülék (akkor nézők vagyunk).
+            LiveWatch.check(this) { info ->
+                if (!resumed || isFinishing) return@check
+                if (LiveWatch.otherActive(info)) openWatch()
+                else startForegroundService(Intent(this, WorkoutService::class.java))
+            }
+        }
+        blink.postDelayed(livePoll, LIVE_POLL_MS)
         render()
     }
 
+    // Edzés nélkül 10 mp-enként: ha közben egy másik készüléken indult edzés, átadjuk neki a gépet.
+    private var resumed = false
+    private val livePoll = object : Runnable {
+        override fun run() {
+            if (!resumed) return
+            if (!KettlerState.running && !LiveWatch.ignored) {
+                LiveWatch.check(this@MainActivity) { info ->
+                    if (resumed && !isFinishing && !KettlerState.running && LiveWatch.otherActive(info)) openWatch()
+                }
+            }
+            blink.postDelayed(this, LIVE_POLL_MS)
+        }
+    }
+
+    private fun openWatch() {
+        stopService(Intent(this, WorkoutService::class.java))
+        @Suppress("DEPRECATION")
+        startActivityForResult(Intent(this, WatchActivity::class.java), REQ_WATCH)
+    }
+
     override fun onPause() {
+        resumed = false
+        blink.removeCallbacks(livePoll)
         blink.removeCallbacks(heartTick)
         KettlerState.removeListener(listener)
         super.onPause()
@@ -571,6 +606,8 @@ class MainActivity : KettlerActivity() {
     companion object {
         private const val MIN_SAVED_MS = 60_000L
         private const val REQ_SETTINGS = 1
+        private const val REQ_WATCH = 2
+        private const val LIVE_POLL_MS = 10_000L
 
         private const val BAR_H = 145
         private const val BIG_VALUE = 165

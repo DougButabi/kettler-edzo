@@ -44,32 +44,51 @@ object HaPush {
 
     private fun send(c: Context, state: String, force: Boolean = false) {
         val url = Prefs.haWebhook(c)
-        if (url.isBlank()) return
+        // A ULC is megkapja (élő állapot a többi készüléknek, lásd LiveWatch)
+        val ulc = Sync.configured(c)
+        if (url.isBlank() && !ulc) return
         // Ha az előző kérés még lóg (pl. nem érhető el a HA), a soron következő periodikusat kihagyjuk.
         if (!force && busy.get()) return
         lastState = state
         lastSentAt = System.currentTimeMillis()
         val body = payload(c, state).toString()
+        val app = c.applicationContext
         busy.set(true)
         executor.execute {
-            status = try {
-                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = 3000
-                    readTimeout = 3000
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            try {
+                if (url.isNotBlank()) {
+                    status = try {
+                        val code = post(url, body, null)
+                        clock() + if (code in 200..299) " · rendben" else " · hiba: HTTP $code"
+                    } catch (e: Exception) {
+                        clock() + " · nem érhető el (${e.javaClass.simpleName})"
+                    }
                 }
-                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-                val code = conn.responseCode
-                conn.disconnect()
-                clock() + if (code in 200..299) " · rendben" else " · hiba: HTTP $code"
-            } catch (e: Exception) {
-                clock() + " · nem érhető el (${e.javaClass.simpleName})"
+                if (ulc) {
+                    try {
+                        post(Prefs.syncUrl(app) + "/api/edzes/elo", body, Prefs.syncToken(app))
+                    } catch (_: Exception) {
+                    }
+                }
             } finally {
                 busy.set(false)
             }
         }
+    }
+
+    private fun post(url: String, body: String, token: String?): Int {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 3000
+            readTimeout = 3000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            token?.let { setRequestProperty("Authorization", "Bearer $it") }
+        }
+        conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        val code = conn.responseCode
+        conn.disconnect()
+        return code
     }
 
     private fun clock() = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT).format(java.util.Date())

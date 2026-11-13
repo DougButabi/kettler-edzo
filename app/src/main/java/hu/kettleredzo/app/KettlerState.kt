@@ -33,6 +33,9 @@ object KettlerState {
     var goalReached = false
     val milestones = Milestones()
     private var lastTotalKm = Double.NaN
+    // Edzés közbeni kapcsolatvesztés: mikor szakadt meg, és mekkora volt előtte a sebesség
+    private var droppedAt = 0L
+    private var speedBeforeDrop = 0.0
 
     // Hány képernyője látszik az appnak (lásd KettlerActivity)
     var visibleScreens = 0
@@ -120,6 +123,7 @@ object KettlerState {
         startedAt = System.currentTimeMillis()
         resetCounters()
         lastTotalKm = totalKm
+        droppedAt = 0L
     }
 
     fun onSpeed(kmh: Double) {
@@ -147,14 +151,32 @@ object KettlerState {
             if (!paused && !lastTotalKm.isNaN()) {
                 val delta = km - lastTotalKm
                 // Ha csökkent, az ESP újraindult vagy nullázták: a nulla óta megtett utat adjuk hozzá.
-                workoutKm += if (delta >= 0) delta else km
+                val added = if (delta >= 0) delta else km
+                workoutKm += added
+                if (droppedAt > 0L && added > 0.0) recoverMovingTime(added)
             }
+            droppedAt = 0L
             lastTotalKm = km
         }
         totalKm = km
     }
 
+    // Kiesés után az első távadatnál: a kiesés alatt megtett útra is jár mozgásidő (különben a táv
+    // megugrik, az idő nem, és torzul az átlag). A kiesés előtti sebességgel (ha nincs, az átlaggal)
+    // becsüljük, legfeljebb a kiesés hosszáig. (A jelzés előtti 5 mp türelmi időben a mozgásidő még ment.)
+    private fun recoverMovingTime(km: Double) {
+        val gapMs = android.os.SystemClock.elapsedRealtime() - droppedAt
+        val kmh = listOf(speedBeforeDrop, avgSpeedKmh).firstOrNull { it > 1.0 } ?: return
+        val ms = kotlin.math.min(gapMs.toDouble(), km / kmh * 3_600_000.0).toLong()
+        if (ms <= 0) return
+        movingMs += ms
+    }
+
     fun onDisconnected(error: String?) {
+        if (running && !paused && connected && droppedAt == 0L) {
+            droppedAt = android.os.SystemClock.elapsedRealtime()
+            speedBeforeDrop = speedKmh
+        }
         connected = false
         lastError = error
         rpm = 0.0

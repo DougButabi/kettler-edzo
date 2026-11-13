@@ -116,6 +116,10 @@
             android:name=".TrackActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".WatchActivity"
+            android:exported="false" />
+
         <receiver
             android:name=".UpdateReceiver"
             android:exported="false" />
